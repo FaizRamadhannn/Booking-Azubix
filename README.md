@@ -24,6 +24,12 @@ npm run dev
    - Existing `bookings` table → run `supabase/preflight_check.sql` first, clean
      up anything it reports, then `…010000_fix_bookings_constraints_and_rls.sql`
    - Then `…020000_create_admin_users.sql` in both cases
+   - Finally run `…030000_schedule_expired_booking_cleanup.sql` and, for a
+     database that already ran the previous cleanup migration, also run
+     `…040000_reschedule_expired_booking_cleanup_daily.sql`. The final schedule
+     runs daily at 03:00 WIB. If the SQL
+     editor reports that `pg_cron` is unavailable, enable the `pg_cron`
+     extension in Supabase Database → Extensions and run it again.
 2. **Turn off public sign-ups** — Authentication → Sign In / Up → _Allow new
    users to sign up_ = **off**. Otherwise anyone could create an account.
 3. **Create your admin** — Authentication → Users → Add user (with a password).
@@ -34,6 +40,55 @@ npm run dev
    on conflict (user_id) do nothing;
    ```
 5. **Fill `.env.local`** from Project Settings → API.
+
+### Manual cleanup test
+
+Run this in the Supabase SQL editor. It uses a transaction so the dummy rows
+are always removed at the end. The reference time is `11:31 WIB` on 10
+September 2026: the first row must be deleted, while the in-progress and
+future rows must remain until the final rollback.
+
+```sql
+begin;
+
+insert into public.bookings
+  (level, date, slot, student_name, whatsapp_group, last_material)
+values
+  ('A1', '2026-09-10', '10:00-11:30', 'Cleanup Test Finished', 'Cleanup Test', 'A1'),
+  ('A1', '2026-09-10', '12:00-13:30', 'Cleanup Test Active', 'Cleanup Test', 'A1'),
+  ('A1', '2026-09-11', '10:00-11:30', 'Cleanup Test Future', 'Cleanup Test', 'A1');
+
+select public.delete_expired_bookings('2026-09-10 04:31:00+00');
+-- Expected: 1
+
+select date, slot, student_name
+  from public.bookings
+ where whatsapp_group = 'Cleanup Test'
+ order by date, slot;
+-- Expected rows: Cleanup Test Active and Cleanup Test Future
+
+rollback;
+```
+
+To verify the installed scheduler and its latest execution:
+
+```sql
+select jobname, schedule, active
+  from cron.job
+ where jobname = 'delete-expired-bookings';
+
+select status, start_time, end_time, return_message
+  from cron.job_run_details
+ where jobid = (
+   select jobid from cron.job
+    where jobname = 'delete-expired-bookings'
+ )
+ order by start_time desc
+ limit 5;
+```
+
+The first query should return `0 20 * * *` and `active = true`. The second
+should show a successful run after the next 03:00 WIB window.
 
 ## Configuration
 
@@ -111,6 +166,7 @@ Checked against a production build (`next start`) with a real database:
 - Rescheduling onto a taken slot, a weekend, a past date or an invented slot is
   refused, and moving a booking onto its own slot is refused too
 - Past classes transition to `EXPIRED` automatically
+- Completed bookings are deleted automatically by the database scheduler
 - An existing v1 database migrates to the new schema with its rows intact
 - Every admin endpoint returns 401 without a valid session and leaves the data
   untouched; the dashboard shows a sign-in form and leaks no student data

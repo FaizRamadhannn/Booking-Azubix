@@ -45,13 +45,14 @@ update `resolveSlots()` in `src/lib/booking/service.ts`.
 
 A slot expires once its class has **finished** (not when it starts), so a lesson
 in progress never vanishes mid-class. `expireFinishedBookings()` runs before
-every read and write, so a stored `status` is always truthful.
+every read and write, so a stored `status` is always truthful while the row
+exists. The database scheduler then deletes completed `BOOKED`/`EXPIRED` rows.
 
 ### Cancellation vs expiry
 
 `CANCELLED` is the only status that **releases** a slot — see
-`SLOT_RELEASING_STATUSES`. An expired booking keeps its slot because the class
-already happened and the history must stay intact.
+`SLOT_RELEASING_STATUSES`. An expired booking keeps its slot while it exists,
+because the class already happened; the scheduled cleanup later removes it.
 
 That is enforced by making the slot index _partial_:
 
@@ -175,6 +176,8 @@ SQL lives in `supabase/migrations/`, applied through the Supabase SQL editor:
 | `…000000_create_bookings_table.sql`            | Fresh install of `bookings`                  |
 | `…010000_fix_bookings_constraints_and_rls.sql` | Upgrade path for an earlier `bookings` table |
 | `…020000_create_admin_users.sql`               | Admin allowlist                              |
+| `…030000_schedule_expired_booking_cleanup.sql` | Scheduled deletion of completed bookings    |
+| `…040000_reschedule_expired_booking_cleanup_daily.sql` | Daily cleanup schedule                  |
 
 `supabase/preflight_check.sql` reports rows that would violate the new
 constraints. Run it before the fix migration.
