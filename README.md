@@ -121,6 +121,11 @@ Level → Date → Time → Your details → Review → Confirm → Success
 Slots are shown as **Available**, **Booked** or **Expired**, each with its own
 icon and wording so status never depends on colour alone. Booked and expired
 slots cannot be selected.
+<img width="762" height="564" alt="Screenshot 2026-08-31 at 07 07 56" src="https://github.com/user-attachments/assets/84227d17-0ffc-4b4d-b104-8a3456885092" />
+<img width="768" height="485" alt="Screenshot 2026-08-31 at 07 07 21" src="https://github.com/user-attachments/assets/84043182-0cbf-4811-b738-6d20c5faa1e1" />
+<img width="748" height="670" alt="Screenshot 2026-08-31 at 07 06 59" src="https://github.com/user-attachments/assets/2818514c-5d90-4059-a74f-7adc7684810a" />
+<img width="754" height="404" alt="Screenshot 2026-08-31 at 07 06 43" src="https://github.com/user-attachments/assets/d5960968-9562-471e-b4f8-708d301d0a7e" />
+
 
 A time slot on a given date holds one class, whatever the level: once an hour is
 taken, it is taken for everyone. Duplicate bookings are prevented by a
@@ -139,7 +144,10 @@ give faster feedback.
 counters for today and upcoming classes, and a detail modal per booking. It
 covers loading, empty, error and populated states, and switches from a table to
 stacked cards on small screens.
+<img width="1018" height="705" alt="Screenshot 2026-08-31 at 07 09 48" src="https://github.com/user-attachments/assets/1d9ad49b-a47e-49e1-8989-e83e44786562" />
 
+
+<img width="430" height="425" alt="Screenshot 2026-08-31 at 07 11 00" src="https://github.com/user-attachments/assets/6587dd0f-9ece-4a92-ac1f-b0c6a1525960" />
 From the detail modal an admin can:
 
 - **Cancel a booking** — after a confirmation step that spells out the
@@ -177,3 +185,9 @@ Checked against a production build (`next start`) with a real database:
 
 See [`project_context.md`](./project_context.md) for architecture and decisions.
 # booking-class-azubix
+
+> **Why there is no public demo**
+>
+> This application is currently used in a real-world setting by me and my students to manage class bookings. For security and privacy reasons, I have decided not to provide a publicly accessible demo at this time.
+>
+> The source code is available for review, with sensitive credentials, production data, and private configuration excluded from the repository. The project can be evaluated through its architecture, implementation, security controls, database constraints, and automated testing.
