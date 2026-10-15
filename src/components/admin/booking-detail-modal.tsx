@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, CalendarClock, CircleX } from "lucide-react";
+import { AlertCircle, BadgeCheck, CalendarClock, CircleX } from "lucide-react";
 
 import { RescheduleForm } from "@/components/admin/reschedule-form";
 import { BookingSummary } from "@/components/booking/booking-summary";
+import { PaymentStatusBadge } from "@/components/booking/payment-status-badge";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -43,6 +44,7 @@ export function BookingDetailModal({
   calendar,
   onOpenChange,
   onCancelBooking,
+  onConfirmPayment,
   onRescheduleBooking,
 }: {
   booking: Booking | null;
@@ -50,6 +52,7 @@ export function BookingDetailModal({
   calendar: CalendarDay[];
   onOpenChange: (open: boolean) => void;
   onCancelBooking: (id: string) => Promise<BookingMutationResult>;
+  onConfirmPayment: (id: string) => Promise<BookingMutationResult>;
   onRescheduleBooking: (
     id: string,
     target: { date: IsoDate; timeSlot: TimeSlotId },
@@ -77,6 +80,7 @@ export function BookingDetailModal({
   }
 
   const canCancel = booking?.status === "BOOKED";
+  const canConfirmPayment = booking?.paymentStatus === "PENDING";
   const canReschedule =
     booking?.status === "BOOKED" || booking?.status === "EXPIRED";
 
@@ -114,6 +118,8 @@ export function BookingDetailModal({
           <div className="space-y-4">
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={booking.status} />
+              <span className="text-sm text-muted-foreground">{t.paymentStatusLabel}</span>
+              <PaymentStatusBadge status={booking.paymentStatus} />
               <span className="text-xs text-muted-foreground">
                 {t.reference}{" "}
                 <span className="font-mono">{booking.id.slice(0, 8)}</span>
@@ -198,6 +204,16 @@ export function BookingDetailModal({
         {view === "details" && (
           <DialogFooter className="gap-2">
             <DialogClose render={<Button variant="outline">{dict.common.close}</Button>} />
+            {canConfirmPayment && booking && (
+              <Button
+                type="button"
+                onClick={() => void run(() => onConfirmPayment(booking.id))}
+                disabled={pending}
+              >
+                <BadgeCheck aria-hidden="true" />
+                {pending ? t.confirmingPayment : t.confirmPayment}
+              </Button>
+            )}
             {canReschedule && (
               <Button
                 type="button"

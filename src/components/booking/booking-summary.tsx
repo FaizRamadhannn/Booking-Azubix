@@ -14,6 +14,7 @@ export interface BookingSummaryData {
   studentName: string;
   whatsappGroupName: string;
   lastMaterial: string;
+  price?: number;
 }
 
 /** Definition list shared by the review step, the success panel and the admin modal. */
@@ -38,6 +39,16 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
     { label: labels.whatsappGroupName, value: booking.whatsappGroupName },
     { label: labels.lastMaterial, value: booking.lastMaterial },
   ];
+  if (booking.price !== undefined) {
+    rows.push({
+      label: labels.price,
+      value: new Intl.NumberFormat("id-ID", {
+        style: "currency",
+        currency: "IDR",
+        maximumFractionDigits: 0,
+      }).format(booking.price),
+    });
+  }
 
   return (
     <dl className="divide-y divide-border rounded-lg border border-border">

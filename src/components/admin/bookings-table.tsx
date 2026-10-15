@@ -1,6 +1,7 @@
 "use client";
 
 import { LevelBadge } from "@/components/booking/level-badge";
+import { PaymentStatusBadge } from "@/components/booking/payment-status-badge";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -47,6 +48,7 @@ export function BookingsTable({
               <TableHead scope="col">{t.whatsappGroup}</TableHead>
               <TableHead scope="col">{t.lastMaterial}</TableHead>
               <TableHead scope="col">{t.status}</TableHead>
+              <TableHead scope="col">{t.paymentStatus}</TableHead>
               <TableHead scope="col">
                 <span className="sr-only">{t.actions}</span>
               </TableHead>
@@ -75,6 +77,9 @@ export function BookingsTable({
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={booking.status} />
+                </TableCell>
+                <TableCell>
+                  <PaymentStatusBadge status={booking.paymentStatus} />
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -110,6 +115,10 @@ export function BookingsTable({
                 </p>
               </div>
               <StatusBadge status={booking.status} />
+            </div>
+
+            <div className="mt-2">
+              <PaymentStatusBadge status={booking.paymentStatus} />
             </div>
 
             <dl className="mt-3 space-y-1 text-sm">

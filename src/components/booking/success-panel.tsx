@@ -3,6 +3,7 @@
 import { CalendarPlus, CircleCheckBig } from "lucide-react";
 
 import { BookingSummary } from "@/components/booking/booking-summary";
+import { PaymentStatusBadge } from "@/components/booking/payment-status-badge";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n/i18n-context";
@@ -36,6 +37,8 @@ export function SuccessPanel({
       <div className="mt-5 flex flex-wrap items-center gap-2">
         <span className="text-sm text-muted-foreground">{t.statusLabel}</span>
         <StatusBadge status={booking.status} />
+        <span className="text-sm text-muted-foreground">{t.paymentStatusLabel}</span>
+        <PaymentStatusBadge status={booking.paymentStatus} />
         <span className="text-xs text-muted-foreground">
           {t.reference} <span className="font-mono">{booking.id.slice(0, 8)}</span>
         </span>

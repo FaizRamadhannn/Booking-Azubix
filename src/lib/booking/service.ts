@@ -12,6 +12,7 @@ import {
 import { BookingError } from "./errors";
 import {
   cancelBookingById,
+  confirmBookingPaymentById,
   expireFinishedBookings,
   findBookingById,
   findBookings,
@@ -292,6 +293,28 @@ export async function rescheduleBooking(
   return moved;
 }
 
+export async function confirmBookingPayment(id: string): Promise<Booking> {
+  const booking = await requireBooking(id);
+  if (booking.paymentStatus === "CONFIRMED") {
+    throw new BookingError(
+      "ALREADY_CONFIRMED",
+      "The payment has already been confirmed.",
+    );
+  }
+
+  const confirmed = await confirmBookingPaymentById(id);
+  if (confirmed) return confirmed;
+
+  const current = await requireBooking(id);
+  if (current.paymentStatus === "CONFIRMED") {
+    throw new BookingError(
+      "ALREADY_CONFIRMED",
+      "The payment has already been confirmed.",
+    );
+  }
+  throw new BookingError("NOT_FOUND", "That booking no longer exists.");
+}
+
 /** Parses an untrusted admin action payload and applies it. */
 export async function applyBookingAction(
   id: string,
@@ -299,9 +322,9 @@ export async function applyBookingAction(
   now: Date = new Date(),
 ): Promise<Booking> {
   const action = parseBookingAction(input);
-  return action.action === "cancel"
-    ? cancelBooking(id, now)
-    : rescheduleBooking(
+  if (action.action === "cancel") return cancelBooking(id, now);
+  if (action.action === "confirm-payment") return confirmBookingPayment(id);
+  return rescheduleBooking(
         id,
         { date: action.date, timeSlot: action.timeSlot as TimeSlotId },
         now,

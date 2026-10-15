@@ -11,7 +11,7 @@ export const BOOKING_STEPS = [
   "date",
   "time",
   "details",
-  "review",
+  "payment",
 ] as const;
 
 export type BookingStepId = (typeof BOOKING_STEPS)[number];

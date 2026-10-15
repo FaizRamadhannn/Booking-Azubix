@@ -127,6 +127,12 @@ describe("parseBookingAction", () => {
     });
   });
 
+  test("accepts manual payment confirmation", () => {
+    assert.deepEqual(parseBookingAction({ action: "confirm-payment" }), {
+      action: "confirm-payment",
+    });
+  });
+
   test("accepts a reschedule action with a date and slot", () => {
     assert.deepEqual(
       parseBookingAction({

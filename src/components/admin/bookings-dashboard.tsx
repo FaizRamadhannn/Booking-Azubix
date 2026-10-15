@@ -285,6 +285,7 @@ function BookingsDashboardInner({
           if (!open) setSelected(null);
         }}
         onCancelBooking={(id) => mutate(id, { action: "cancel" })}
+        onConfirmPayment={(id) => mutate(id, { action: "confirm-payment" })}
         onRescheduleBooking={(
           id,
           target: { date: IsoDate; timeSlot: TimeSlotId },

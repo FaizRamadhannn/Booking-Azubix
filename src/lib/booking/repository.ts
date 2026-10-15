@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabaseService } from "@/lib/supabase/service";
 
-import { TIME_SLOTS } from "./constants";
+import { CLASS_PRICES_IDR, TIME_SLOTS } from "./constants";
 import { minutesOfDayInZone, todayInZone } from "./datetime";
 import type { Booking, BookingFilters, CreateBookingInput, IsoDate } from "./types";
 
@@ -13,7 +13,7 @@ const TABLE = "bookings";
 
 /** Columns selected everywhere, so every read produces a complete Booking. */
 const COLUMNS =
-  "id, level, date, slot, status, student_name, whatsapp_group, last_material, created_at, updated_at";
+  "id, level, date, slot, status, price, payment_status, student_name, whatsapp_group, last_material, created_at, updated_at";
 
 /** The database uses snake_case; the domain model uses camelCase. */
 type BookingRow = {
@@ -22,6 +22,8 @@ type BookingRow = {
   date: string;
   slot: string;
   status: string;
+  price: number;
+  payment_status: string;
   student_name: string;
   whatsapp_group: string;
   last_material: string;
@@ -39,6 +41,8 @@ function toBooking(row: BookingRow): Booking {
     date: row.date,
     timeSlot: row.slot as Booking["timeSlot"],
     status: row.status as Booking["status"],
+    price: row.price,
+    paymentStatus: row.payment_status as Booking["paymentStatus"],
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -112,6 +116,8 @@ export async function insertBooking(input: CreateBookingInput): Promise<Booking 
       date: input.date,
       slot: input.timeSlot,
       status: "BOOKED",
+      price: CLASS_PRICES_IDR[input.level],
+      payment_status: "PENDING",
       student_name: input.studentName,
       whatsapp_group: input.whatsappGroupName,
       last_material: input.lastMaterial,
@@ -125,6 +131,25 @@ export async function insertBooking(input: CreateBookingInput): Promise<Booking 
   assertNoError(error, "creating booking");
 
   return toBooking(data as unknown as BookingRow);
+}
+
+export async function confirmBookingPaymentById(
+  id: string,
+): Promise<Booking | null> {
+  const db = supabaseService();
+  const { data, error } = await db
+    .from(TABLE)
+    .update({
+      payment_status: "CONFIRMED",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("payment_status", "PENDING")
+    .select(COLUMNS)
+    .maybeSingle();
+
+  assertNoError(error, "confirming booking payment");
+  return data ? toBooking(data as unknown as BookingRow) : null;
 }
 
 /**

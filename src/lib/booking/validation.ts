@@ -60,6 +60,7 @@ export const rescheduleBookingSchema = z.object({
 /** Discriminates the two admin operations on an existing booking. */
 export const bookingActionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("cancel") }),
+  z.object({ action: z.literal("confirm-payment") }),
   z
     .object({ action: z.literal("reschedule") })
     .extend(rescheduleBookingSchema.shape),

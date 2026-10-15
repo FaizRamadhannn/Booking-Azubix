@@ -23,6 +23,9 @@ npm run dev
    - New project → `…000000_create_bookings_table.sql`
    - Existing `bookings` table → run `supabase/preflight_check.sql` first, clean
      up anything it reports, then `…010000_fix_bookings_constraints_and_rls.sql`
+   - Then run `…20261015000000_add_booking_payment_fields.sql` before deploying
+     this version. It adds the canonical class price and pending/manual-confirmation
+     payment status while preserving existing bookings.
    - Then `…020000_create_admin_users.sql` in both cases
    - Finally run `…030000_schedule_expired_booking_cleanup.sql` and, for a
      database that already ran the previous cleanup migration, also run
@@ -115,8 +118,13 @@ should show a successful run after the next 03:00 WIB window.
 ## How booking works
 
 ```
-Level → Date → Time → Your details → Review → Confirm → Success
+Level → Date → Time → Your details → QRIS payment → Booking recorded
 ```
+
+QRIS is static; students enter the displayed amount manually in their banking
+or e-wallet app. A booking is created only after the student selects “Saya
+Sudah Bayar”. Payment remains pending until an admin confirms it in the booking
+detail modal; there is no gateway, proof upload, or automatic verification.
 
 Slots are shown as **Available**, **Booked** or **Expired**, each with its own
 icon and wording so status never depends on colour alone. Booked and expired

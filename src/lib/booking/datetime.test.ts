@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 
-import { CLASS_LEVELS, OPEN_WEEKDAYS, TIME_SLOTS } from "./constants";
+import {
+  CLASS_LEVELS,
+  CLASS_PRICES_IDR,
+  OPEN_WEEKDAYS,
+  TIME_SLOTS,
+} from "./constants";
 import {
   addDays,
   findTimeSlot,
@@ -18,6 +23,10 @@ describe("business constants", () => {
   test("only A1, A2 and B1 exist", () => {
     assert.deepEqual([...CLASS_LEVELS], ["A1", "A2", "B1"]);
     assert.ok(!(CLASS_LEVELS as readonly string[]).includes("B2"));
+  });
+
+  test("each class level has its configured price in rupiah", () => {
+    assert.deepEqual(CLASS_PRICES_IDR, { A1: 50_000, A2: 65_000, B1: 80_000 });
   });
 
   test("the six published slots are the only ones", () => {

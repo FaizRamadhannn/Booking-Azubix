@@ -10,6 +10,15 @@ export const TIMEZONE_LABEL = "WIB (Asia/Jakarta)" as const;
 /** The only class levels that exist. There is deliberately no B2. */
 export const CLASS_LEVELS = ["A1", "A2", "B1"] as const;
 
+/** Prices in Indonesian rupiah; clients may display but never override these. */
+export const CLASS_PRICES_IDR: Record<(typeof CLASS_LEVELS)[number], number> = {
+  A1: 50_000,
+  A2: 65_000,
+  B1: 80_000,
+};
+
+export const PAYMENT_STATUSES = ["PENDING", "CONFIRMED"] as const;
+
 /**
  * Fixed weekly time slots. Students can never define their own.
  * `start`/`end` are local wall-clock times in {@link TIMEZONE}.

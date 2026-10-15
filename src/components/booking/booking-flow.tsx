@@ -1,15 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight } from "lucide-react";
 
-import { BookingSummary } from "@/components/booking/booking-summary";
 import { DateStep } from "@/components/booking/date-step";
 import {
   DetailsStep,
   type StudentDetails,
 } from "@/components/booking/details-step";
 import { LevelStep } from "@/components/booking/level-step";
+import { PaymentStep } from "@/components/booking/payment-step";
 import { SuccessPanel } from "@/components/booking/success-panel";
 import { BOOKING_STEPS, Stepper, type BookingStepId } from "@/components/booking/stepper";
 import { TimeStep, type LoadState } from "@/components/booking/time-step";
@@ -24,6 +24,7 @@ import type {
   IsoDate,
   TimeSlotId,
 } from "@/lib/booking/types";
+import { CLASS_PRICES_IDR } from "@/lib/booking/constants";
 import { createBookingSchema } from "@/lib/booking/validation";
 import { localizeFieldErrors } from "@/lib/i18n/field-errors";
 import { format } from "@/lib/i18n/get-dictionary";
@@ -75,6 +76,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   const [formError, setFormError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [booking, setBooking] = React.useState<Booking | null>(null);
+  const submitLock = React.useRef(false);
 
   const headingRef = React.useRef<HTMLHeadingElement>(null);
   const hasMounted = React.useRef(false);
@@ -161,11 +163,21 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       return;
     }
     setFieldErrors({});
-    setStep("review");
+    setStep("payment");
   }
 
   async function confirmBooking() {
-    if (!level || !date || !timeSlot) return;
+    if (submitLock.current || !level || !date || !timeSlot) return;
+    const result = createBookingSchema.safeParse({ ...details, level, date, timeSlot });
+    if (!result.success) {
+      const fields = result.error.issues.map((issue) => String(issue.path[0] ?? "form"));
+      setFieldErrors(localizeFieldErrors(dict, fields));
+      setStep("details");
+      setFormError(dict.booking.payment.invalidError);
+      return;
+    }
+
+    submitLock.current = true;
     setSubmitting(true);
     setFormError(null);
 
@@ -185,7 +197,13 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
 
       const error = (await response.json()) as BookingErrorBody;
       setFieldErrors(localizeFieldErrors(dict, Object.keys(error.fieldErrors ?? {})));
-      setFormError(dict.errors[error.code] ?? dict.errors.INTERNAL);
+      setFormError(
+        error.code === "SLOT_TAKEN" || error.code === "SLOT_EXPIRED"
+          ? dict.booking.payment.slotError
+          : error.code === "VALIDATION_FAILED"
+            ? dict.booking.payment.invalidError
+            : dict.booking.payment.genericError,
+      );
 
       // The slot was taken or expired between review and confirm: send the
       // student back to a freshly loaded list of times rather than looping.
@@ -208,6 +226,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       setFormError(dict.booking.networkError);
     } finally {
       setSubmitting(false);
+      submitLock.current = false;
     }
   }
 
@@ -286,18 +305,16 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
           />
         )}
 
-        {step === "review" && level && date && timeSlot && (
-          <div>
-            <h4 className="text-base font-semibold tracking-tight">
-              {dict.booking.review.heading}
-            </h4>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {dict.booking.review.subtext}
-            </p>
-            <div className="mt-4">
-              <BookingSummary booking={{ ...details, level, date, timeSlot }} />
-            </div>
-          </div>
+        {step === "payment" && level && date && timeSlot && (
+          <PaymentStep
+            level={level}
+            date={date}
+            timeSlot={timeSlot}
+            details={details}
+            price={CLASS_PRICES_IDR[level]}
+            busy={submitting}
+            onConfirm={() => void confirmBooking()}
+          />
         )}
 
         {step === "success" && booking && (
@@ -325,17 +342,6 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
               </Button>
             )}
 
-            {step === "review" && (
-              <Button
-                type="button"
-                size="lg"
-                onClick={() => void confirmBooking()}
-                disabled={submitting}
-              >
-                {submitting && <Loader2 aria-hidden="true" className="animate-spin" />}
-                {submitting ? dict.booking.buttons.confirming : dict.booking.buttons.confirmBooking}
-              </Button>
-            )}
           </div>
         )}
       </CardContent>

@@ -2,6 +2,7 @@ import type {
   BOOKING_RECORD_STATUSES,
   BOOKING_STATUSES,
   CLASS_LEVELS,
+  PAYMENT_STATUSES,
   TIME_SLOTS,
 } from "./constants";
 
@@ -23,6 +24,8 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 /** The subset of {@link BookingStatus} a stored booking can hold. */
 export type BookingRecordStatus = (typeof BOOKING_RECORD_STATUSES)[number];
 
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
 /** A calendar date in {@link import("./constants").TIMEZONE}, formatted `YYYY-MM-DD`. */
 export type IsoDate = string;
 
@@ -35,6 +38,8 @@ export interface Booking {
   date: IsoDate;
   timeSlot: TimeSlotId;
   status: BookingRecordStatus;
+  price: number;
+  paymentStatus: PaymentStatus;
   createdAt: string;
   updatedAt: string;
 }
