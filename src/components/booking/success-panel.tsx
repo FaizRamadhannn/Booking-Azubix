@@ -40,7 +40,8 @@ export function SuccessPanel({
         <span className="text-sm text-muted-foreground">{t.paymentStatusLabel}</span>
         <PaymentStatusBadge status={booking.paymentStatus} />
         <span className="text-xs text-muted-foreground">
-          {t.reference} <span className="font-mono">{booking.id.slice(0, 8)}</span>
+          {t.reference}{" "}
+          <span className="font-mono">{booking.paymentCode ?? booking.id.slice(0, 8)}</span>
         </span>
       </div>
 

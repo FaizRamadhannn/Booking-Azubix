@@ -2,7 +2,7 @@ import "server-only";
 
 import { supabaseService } from "@/lib/supabase/service";
 
-import { CLASS_PRICES_IDR, TIME_SLOTS } from "./constants";
+import { pricePerSession, TIME_SLOTS } from "./constants";
 import { minutesOfDayInZone, todayInZone } from "./datetime";
 import type { Booking, BookingFilters, CreateBookingInput, IsoDate } from "./types";
 
@@ -13,17 +13,22 @@ const TABLE = "bookings";
 
 /** Columns selected everywhere, so every read produces a complete Booking. */
 const COLUMNS =
-  "id, level, date, slot, status, price, payment_status, student_name, whatsapp_group, last_material, created_at, updated_at";
+  "id, booking_type, level, date, slot, status, price, payment_status, payment_code, amount_due, payment_deadline, payer_name, student_name, whatsapp_group, last_material, created_at, updated_at";
 
 /** The database uses snake_case; the domain model uses camelCase. */
 type BookingRow = {
   id: string;
+  booking_type: string;
   level: string;
   date: string;
   slot: string;
   status: string;
   price: number;
   payment_status: string;
+  payment_code: string | null;
+  amount_due: number;
+  payment_deadline: string | null;
+  payer_name: string | null;
   student_name: string;
   whatsapp_group: string;
   last_material: string;
@@ -37,12 +42,17 @@ function toBooking(row: BookingRow): Booking {
     studentName: row.student_name,
     whatsappGroupName: row.whatsapp_group,
     lastMaterial: row.last_material,
+    bookingType: row.booking_type as Booking["bookingType"],
     level: row.level as Booking["level"],
     date: row.date,
     timeSlot: row.slot as Booking["timeSlot"],
     status: row.status as Booking["status"],
     price: row.price,
     paymentStatus: row.payment_status as Booking["paymentStatus"],
+    paymentCode: row.payment_code,
+    amountDue: row.amount_due,
+    paymentDeadline: row.payment_deadline,
+    payerName: row.payer_name,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -50,6 +60,11 @@ function toBooking(row: BookingRow): Booking {
 
 function isUniqueViolation(error: { code?: string } | null): boolean {
   return error?.code === UNIQUE_VIOLATION;
+}
+
+/** True when the unique violation came from the one-booking-per-slot index. */
+function isSlotViolation(error: { message?: string; details?: string } | null): boolean {
+  return `${error?.message ?? ""} ${error?.details ?? ""}`.includes("bookings_slot_unique");
 }
 
 /** Turns an unexpected PostgREST error into a thrown exception. */
@@ -72,10 +87,26 @@ function slotsEndedToday(now: Date): string[] {
 }
 
 /**
- * Moves every booking whose class has already finished to `EXPIRED`.
+ * Cancels bookings that were never paid within their hold window, which
+ * releases the slot for other students.
+ */
+async function releaseUnpaidBookings(now: Date): Promise<void> {
+  const { error } = await supabaseService()
+    .from(TABLE)
+    .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
+    .eq("status", "BOOKED")
+    .eq("payment_status", "UNPAID")
+    .lt("payment_deadline", now.toISOString());
+  assertNoError(error, "releasing unpaid bookings");
+}
+
+/**
+ * Moves every booking whose class has already finished to `EXPIRED`, and
+ * releases unpaid holds that ran out of time.
  * Called before each read/write so the stored status is always truthful.
  */
 export async function expireFinishedBookings(now: Date = new Date()): Promise<void> {
+  await releaseUnpaidBookings(now);
   const db = supabaseService();
   const today = todayInZone(now);
   const timestamp = new Date().toISOString();
@@ -101,23 +132,41 @@ export async function expireFinishedBookings(now: Date = new Date()): Promise<vo
   }
 }
 
+export interface PaymentReference {
+  paymentCode: string;
+  amountDue: number;
+  paymentDeadline: Date;
+}
+
+export type InsertResult =
+  | { ok: true; booking: Booking }
+  | { ok: false; conflict: "slot" | "payment" };
+
 /**
- * Inserts a booking, relying on the partial UNIQUE index for atomicity.
- * Returns `null` when the slot was taken by a concurrent request.
+ * Inserts an `UNPAID` booking, relying on the partial UNIQUE indexes for
+ * atomicity. A `slot` conflict means a concurrent request took the slot; a
+ * `payment` conflict means the code or amount collided and should be redrawn.
  */
-export async function insertBooking(input: CreateBookingInput): Promise<Booking | null> {
+export async function insertBooking(
+  input: CreateBookingInput,
+  payment: PaymentReference,
+): Promise<InsertResult> {
   const db = supabaseService();
   const timestamp = new Date().toISOString();
 
   const { data, error } = await db
     .from(TABLE)
     .insert({
+      booking_type: input.bookingType,
       level: input.level,
       date: input.date,
       slot: input.timeSlot,
       status: "BOOKED",
-      price: CLASS_PRICES_IDR[input.level],
-      payment_status: "PENDING",
+      price: pricePerSession(input.bookingType, input.level),
+      payment_status: "UNPAID",
+      payment_code: payment.paymentCode,
+      amount_due: payment.amountDue,
+      payment_deadline: payment.paymentDeadline.toISOString(),
       student_name: input.studentName,
       whatsapp_group: input.whatsappGroupName,
       last_material: input.lastMaterial,
@@ -127,10 +176,41 @@ export async function insertBooking(input: CreateBookingInput): Promise<Booking 
     .select(COLUMNS)
     .single();
 
-  if (isUniqueViolation(error)) return null;
+  if (isUniqueViolation(error)) {
+    return { ok: false, conflict: isSlotViolation(error) ? "slot" : "payment" };
+  }
   assertNoError(error, "creating booking");
 
-  return toBooking(data as unknown as BookingRow);
+  return { ok: true, booking: toBooking(data as unknown as BookingRow) };
+}
+
+/**
+ * The student reports the transfer. Only succeeds while the hold is still
+ * live, and only once — a second click finds nothing `UNPAID` to update.
+ */
+export async function markBookingPaidById(
+  id: string,
+  paymentCode: string,
+  payerName: string,
+  now: Date,
+): Promise<Booking | null> {
+  const { data, error } = await supabaseService()
+    .from(TABLE)
+    .update({
+      payment_status: "PENDING",
+      payer_name: payerName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id)
+    .eq("payment_code", paymentCode)
+    .eq("status", "BOOKED")
+    .eq("payment_status", "UNPAID")
+    .gt("payment_deadline", now.toISOString())
+    .select(COLUMNS)
+    .maybeSingle();
+
+  assertNoError(error, "marking booking as paid");
+  return data ? toBooking(data as unknown as BookingRow) : null;
 }
 
 export async function confirmBookingPaymentById(
@@ -144,7 +224,8 @@ export async function confirmBookingPaymentById(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id)
-    .eq("payment_status", "PENDING")
+    .neq("status", "CANCELLED")
+    .in("payment_status", ["UNPAID", "PENDING"])
     .select(COLUMNS)
     .maybeSingle();
 

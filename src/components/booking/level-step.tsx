@@ -2,19 +2,27 @@
 
 import { ChevronRight } from "lucide-react";
 
-import { CLASS_LEVELS } from "@/lib/booking/constants";
-import type { ClassLevel } from "@/lib/booking/types";
+import { PrivatePlans } from "@/components/booking/private-plans";
+import { CLASS_LEVELS, pricePerSession } from "@/lib/booking/constants";
+import type { BookingType, ClassLevel } from "@/lib/booking/types";
+import { format } from "@/lib/i18n/get-dictionary";
 import { useI18n } from "@/lib/i18n/i18n-context";
-import { cn } from "@/lib/utils";
+import { cn, formatRupiah } from "@/lib/utils";
 
 export function LevelStep({
+  bookingType,
   value,
   onSelect,
 }: {
+  bookingType: BookingType;
   value: ClassLevel | null;
   onSelect: (level: ClassLevel) => void;
 }) {
   const { dict } = useI18n();
+
+  if (bookingType === "PRIVATE") {
+    return <PrivatePlans value={value} onSelect={onSelect} />;
+  }
 
   return (
     <fieldset>
@@ -50,6 +58,11 @@ export function LevelStep({
               </span>
               <span className="mt-1 text-sm text-muted-foreground">
                 {dict.levels[level]}
+              </span>
+              <span className="mt-3 text-sm font-semibold tabular-nums">
+                {format(dict.booking.pricing.perSession, {
+                  price: formatRupiah(pricePerSession(bookingType, level)),
+                })}
               </span>
               {selected && <span className="sr-only">{dict.booking.level.srSelected}</span>}
             </button>

@@ -1,44 +1,83 @@
 "use client";
 
+import * as React from "react";
 import Image from "next/image";
-import { Loader2 } from "lucide-react";
+import { Loader2, Timer } from "lucide-react";
 
 import qrisImage from "@/components/payment/Qris.webp";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  FIELD_LIMITS,
+  PRIVATE_PACKAGE_EXTRAS,
+  PRIVATE_PACKAGE_INCLUDES,
+  PAYMENT_HOLD_MINUTES,
+  PRIVATE_PACKAGES,
+  privatePackageTotal,
+} from "@/lib/booking/constants";
+import { secondsLeft } from "@/lib/booking/payment";
 import { findTimeSlot, formatLongDate } from "@/lib/booking/datetime";
-import type { ClassLevel, IsoDate, TimeSlotId } from "@/lib/booking/types";
+import { format } from "@/lib/i18n/get-dictionary";
+import { formatRupiah } from "@/lib/utils";
+import type { Booking } from "@/lib/booking/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { intlTag } from "@/lib/i18n/locale";
-import type { StudentDetails } from "./details-step";
 
-function formatRupiah(amount: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(amount);
+/** Seconds until the hold ends, ticking once a second; fires `onExpired` once at zero. */
+function useCountdown(deadline: string | null, onExpired: () => void): number | null {
+  const [left, setLeft] = React.useState(() =>
+    deadline ? secondsLeft(deadline, new Date()) : null,
+  );
+  const expiredRef = React.useRef(onExpired);
+  React.useEffect(() => {
+    expiredRef.current = onExpired;
+  });
+
+  React.useEffect(() => {
+    if (!deadline) return;
+    const tick = () => {
+      const next = secondsLeft(deadline, new Date());
+      setLeft(next);
+      if (next === 0) {
+        window.clearInterval(id);
+        expiredRef.current();
+      }
+    };
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [deadline]);
+
+  return left;
+}
+
+function formatClock(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 export function PaymentStep({
-  level,
-  date,
-  timeSlot,
-  details,
-  price,
+  booking,
   busy,
   onConfirm,
+  onExpired,
 }: {
-  level: ClassLevel;
-  date: IsoDate;
-  timeSlot: TimeSlotId;
-  details: StudentDetails;
-  price: number;
+  /** The UNPAID hold created when the student left the details step. */
+  booking: Booking;
   busy: boolean;
-  onConfirm: () => void;
+  onConfirm: (payerName: string) => void;
+  onExpired: () => void;
 }) {
+  const [payerName, setPayerName] = React.useState("");
+  const [payerError, setPayerError] = React.useState(false);
   const { dict, locale } = useI18n();
   const t = dict.booking.payment;
+  const { bookingType, level, date, timeSlot } = booking;
+  const details = booking;
   const slot = findTimeSlot(timeSlot);
+  const isPrivate = bookingType === "PRIVATE";
+  const left = useCountdown(booking.paymentDeadline, onExpired);
 
   return (
     <div>
@@ -62,11 +101,35 @@ export function PaymentStep({
           <h4 id="qris-heading" className="mt-3 text-xl font-semibold">
             {t.heading}
           </h4>
-          <p className="mt-2 text-sm text-cyan-50">Level {level}</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums sm:text-4xl">
-            {formatRupiah(price)}
+          <p className="mt-2 text-sm text-cyan-50">
+            {dict.common.bookingType[bookingType]} · Level {level}
           </p>
-          <p className="mt-1 text-xs text-cyan-100">{t.amountLabel}</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums sm:text-4xl">
+            {formatRupiah(booking.amountDue)}
+          </p>
+          <p className="mt-1 text-xs text-cyan-100">
+            {isPrivate ? t.privateAmountLabel : t.amountLabel}
+          </p>
+
+          {booking.paymentCode && (
+            <p className="mt-3 text-sm text-cyan-50">
+              {t.paymentCodeLabel}{" "}
+              <span className="rounded bg-white/15 px-2 py-0.5 font-mono font-semibold tracking-wider text-white">
+                {booking.paymentCode}
+              </span>
+            </p>
+          )}
+
+          {left !== null && (
+            <p
+              className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full bg-amber-400 px-3 py-1 text-sm font-semibold text-slate-950"
+              aria-live={left <= 60 ? "polite" : "off"}
+            >
+              <Timer aria-hidden="true" className="size-4" />
+              {t.countdownLabel}{" "}
+              <span className="tabular-nums">{formatClock(left)}</span>
+            </p>
+          )}
 
           <div className="mx-auto mt-5 max-w-[22rem] rounded-xl bg-white p-3 shadow-lg sm:p-4">
             <Image
@@ -84,8 +147,55 @@ export function PaymentStep({
           <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-cyan-100">
             {t.amountInstruction}
           </p>
+          <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-cyan-100/80">
+            {format(t.holdNote, { minutes: PAYMENT_HOLD_MINUTES })}
+          </p>
         </div>
       </section>
+
+      {isPrivate && (
+        <section aria-labelledby="private-heading" className="border-b border-border py-4">
+          <h4 id="private-heading" className="font-semibold">
+            {t.privatePackageHeading} {level}
+          </h4>
+          <p className="mt-1 text-sm text-muted-foreground tabular-nums">
+            {format(t.privatePerSession, {
+              price: formatRupiah(PRIVATE_PACKAGES[level].pricePerSession),
+              sessions: String(PRIVATE_PACKAGES[level].sessions),
+            })}{" "}
+            = {formatRupiah(privatePackageTotal(level))}
+          </p>
+
+          <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
+            <div>
+              <p className="font-medium">{t.privateIncludesHeading}</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5 text-muted-foreground">
+                <li>
+                  {format(dict.booking.privatePlans.sessions, {
+                    sessions: PRIVATE_PACKAGES[level].sessions,
+                  })}
+                </li>
+                {PRIVATE_PACKAGE_INCLUDES.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium">{t.privateExtrasHeading}</p>
+              <ul className="mt-1 flex flex-wrap gap-1.5">
+                {PRIVATE_PACKAGE_EXTRAS.map((item) => (
+                  <li
+                    key={item}
+                    className="rounded-full bg-amber-400/20 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                  >
+                    + {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+      )}
 
       <dl className="grid gap-x-6 gap-y-3 border-b border-border py-4 text-sm sm:grid-cols-2">
         <div>
@@ -112,11 +222,46 @@ export function PaymentStep({
         </div>
       </dl>
 
+      <div className="mt-5 space-y-1.5">
+        <Label htmlFor="payerName">{t.payerNameLabel}</Label>
+        <Input
+          id="payerName"
+          name="payerName"
+          autoComplete="name"
+          required
+          maxLength={FIELD_LIMITS.payerName.max}
+          value={payerName}
+          aria-invalid={payerError}
+          aria-describedby={payerError ? "payerName-error" : "payerName-hint"}
+          onChange={(event) => {
+            setPayerName(event.target.value);
+            setPayerError(false);
+          }}
+        />
+        {payerError ? (
+          <p id="payerName-error" className="text-sm text-destructive">
+            {t.payerNameError}
+          </p>
+        ) : (
+          <p id="payerName-hint" className="text-sm text-muted-foreground">
+            {t.payerNameHint}
+          </p>
+        )}
+      </div>
+
       <Button
         type="button"
         size="lg"
-        onClick={onConfirm}
-        disabled={busy}
+        onClick={() => {
+          const name = payerName.trim();
+          if (name.length < FIELD_LIMITS.payerName.min) {
+            setPayerError(true);
+            document.getElementById("payerName")?.focus();
+            return;
+          }
+          onConfirm(name);
+        }}
+        disabled={busy || left === 0}
         className="mt-5 w-full bg-amber-500 text-slate-950 hover:bg-amber-400 focus-visible:ring-amber-300"
       >
         {busy && <Loader2 aria-hidden="true" className="animate-spin" />}

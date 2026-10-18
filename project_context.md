@@ -178,6 +178,8 @@ SQL lives in `supabase/migrations/`, applied through the Supabase SQL editor:
 | `…020000_create_admin_users.sql`               | Admin allowlist                              |
 | `…030000_schedule_expired_booking_cleanup.sql` | Scheduled deletion of completed bookings    |
 | `…040000_reschedule_expired_booking_cleanup_daily.sql` | Daily cleanup schedule                  |
+| `20261018000000_add_booking_type.sql`          | `booking_type` REGULAR/PRIVATE + per-type prices |
+| `20261018010000_add_payment_reference.sql`    | Payment code, unique transfer amount, 5-minute UNPAID hold |
 
 `supabase/preflight_check.sql` reports rows that would violate the new
 constraints. Run it before the fix migration.

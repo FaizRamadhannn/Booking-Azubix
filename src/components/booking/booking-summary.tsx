@@ -1,13 +1,15 @@
 "use client";
 
 import { LevelBadge } from "@/components/booking/level-badge";
-import { TIMEZONE_LABEL } from "@/lib/booking/constants";
+import { privatePackageTotal, TIMEZONE_LABEL } from "@/lib/booking/constants";
 import { findTimeSlot, formatLongDate } from "@/lib/booking/datetime";
-import type { ClassLevel, IsoDate, TimeSlotId } from "@/lib/booking/types";
+import type { BookingType, ClassLevel, IsoDate, TimeSlotId } from "@/lib/booking/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { intlTag } from "@/lib/i18n/locale";
+import { formatRupiah } from "@/lib/utils";
 
 export interface BookingSummaryData {
+  bookingType?: BookingType;
   level: ClassLevel;
   date: IsoDate;
   timeSlot: TimeSlotId;
@@ -15,6 +17,9 @@ export interface BookingSummaryData {
   whatsappGroupName: string;
   lastMaterial: string;
   price?: number;
+  paymentCode?: string | null;
+  amountDue?: number;
+  payerName?: string | null;
 }
 
 /** Definition list shared by the review step, the success panel and the admin modal. */
@@ -25,6 +30,9 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
 
   const rows: Array<{ label: string; value: React.ReactNode }> = [
     { label: labels.studentName, value: booking.studentName },
+    ...(booking.bookingType
+      ? [{ label: labels.bookingType, value: dict.common.bookingType[booking.bookingType] }]
+      : []),
     { label: labels.level, value: <LevelBadge level={booking.level} /> },
     { label: labels.date, value: formatLongDate(booking.date, intlTag(locale)) },
     {
@@ -40,14 +48,28 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
     { label: labels.lastMaterial, value: booking.lastMaterial },
   ];
   if (booking.price !== undefined) {
+    rows.push({ label: labels.price, value: formatRupiah(booking.price) });
+  }
+  if (booking.bookingType === "PRIVATE") {
     rows.push({
-      label: labels.price,
-      value: new Intl.NumberFormat("id-ID", {
-        style: "currency",
-        currency: "IDR",
-        maximumFractionDigits: 0,
-      }).format(booking.price),
+      label: labels.packageTotal,
+      value: formatRupiah(privatePackageTotal(booking.level)),
     });
+  }
+  if (booking.paymentCode) {
+    rows.push({
+      label: labels.paymentCode,
+      value: <span className="font-mono">{booking.paymentCode}</span>,
+    });
+  }
+  if (booking.paymentCode && booking.amountDue !== undefined) {
+    rows.push({
+      label: labels.amountDue,
+      value: <span className="tabular-nums">{formatRupiah(booking.amountDue)}</span>,
+    });
+  }
+  if (booking.payerName) {
+    rows.push({ label: labels.payerName, value: booking.payerName });
   }
 
   return (
