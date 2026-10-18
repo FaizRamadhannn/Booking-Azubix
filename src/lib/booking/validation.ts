@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import {
   BOOKING_RECORD_STATUSES,
+  BOOKING_TYPES,
   CLASS_LEVELS,
   FIELD_LIMITS,
   TIME_SLOT_IDS,
@@ -36,6 +37,7 @@ export const createBookingSchema = z.object({
   studentName: trimmed("studentName", "Student name"),
   whatsappGroupName: trimmed("whatsappGroupName", "WhatsApp group name"),
   lastMaterial: trimmed("lastMaterial", "Last material"),
+  bookingType: z.enum(BOOKING_TYPES, { error: "Choose private or regular." }),
   level: z.enum(CLASS_LEVELS, { error: "Choose a class level." }),
   date: z
     .string({ error: "Choose a date." })
@@ -46,6 +48,12 @@ export const createBookingSchema = z.object({
 });
 
 export type CreateBookingPayload = z.infer<typeof createBookingSchema>;
+
+/** What the student sends with "Saya Sudah Bayar". */
+export const markPaidSchema = z.object({
+  paymentCode: z.string().trim().min(1).max(32),
+  payerName: trimmed("payerName", "Payer name"),
+});
 
 /** Only the calendar fields may change when an admin moves a booking. */
 export const rescheduleBookingSchema = z.object({

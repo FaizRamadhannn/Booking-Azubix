@@ -1,6 +1,8 @@
 import "server-only";
 
-import { BOOKING_WINDOW_DAYS, TIME_SLOTS } from "./constants";
+import { randomInt } from "node:crypto";
+
+import { amountDueNow, BOOKING_WINDOW_DAYS, TIME_SLOTS } from "./constants";
 import {
   bookingWindowDates,
   formatShortDate,
@@ -19,8 +21,10 @@ import {
   findOccupyingBookingsBetween,
   findOccupyingBookingsByDate,
   insertBooking,
+  markBookingPaidById,
   rescheduleBookingById,
 } from "./repository";
+import { generatePaymentCode, paymentDeadline } from "./payment";
 import type {
   Booking,
   BookingFilters,
@@ -32,8 +36,10 @@ import type {
 } from "./types";
 import {
   assertBookableDate,
+  markPaidSchema,
   parseBookingAction,
   parseCreateBookingInput,
+  toFieldErrors,
 } from "./validation";
 
 /**
@@ -192,9 +198,58 @@ export async function createBooking(
   );
   if (taken) throw slotTakenError();
 
-  const booking = await insertBooking(payload);
-  if (!booking) throw slotTakenError();
-  return booking;
+  // The payment code is random; on the rare collision with an existing code,
+  // draw again. A slot collision is final.
+  for (let attempt = 0; attempt < PAYMENT_REFERENCE_ATTEMPTS; attempt += 1) {
+    const result = await insertBooking(payload, {
+      paymentCode: generatePaymentCode(randomInt),
+      amountDue: amountDueNow(payload.bookingType, payload.level),
+      paymentDeadline: paymentDeadline(now),
+    });
+    if (result.ok) return result.booking;
+    if (result.conflict === "slot") throw slotTakenError();
+  }
+  throw new Error("[bookings] could not allocate a unique payment reference");
+}
+
+const PAYMENT_REFERENCE_ATTEMPTS = 8;
+
+/**
+ * Public: the student reports that they transferred the money. Idempotent —
+ * reporting twice returns the same booking instead of an error, so a double
+ * click or a retried request can never cause trouble.
+ */
+export async function markBookingPaid(
+  id: string,
+  input: unknown,
+  now: Date = new Date(),
+): Promise<Booking> {
+  const parsed = markPaidSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new BookingError(
+      "VALIDATION_FAILED",
+      "Please correct the highlighted fields.",
+      toFieldErrors(parsed.error),
+    );
+  }
+  const { paymentCode, payerName } = parsed.data;
+
+  await expireFinishedBookings(now);
+
+  const paid = await markBookingPaidById(id, paymentCode, payerName, now);
+  if (paid) return paid;
+
+  const booking = await findBookingById(id);
+  if (!booking || booking.paymentCode !== paymentCode) {
+    throw new BookingError("NOT_FOUND", "That booking no longer exists.");
+  }
+  if (booking.paymentStatus !== "UNPAID" && booking.status !== "CANCELLED") {
+    return booking;
+  }
+  throw new BookingError(
+    "PAYMENT_EXPIRED",
+    "The payment window has closed and the slot was released.",
+  );
 }
 
 function slotTakenError(): BookingError {

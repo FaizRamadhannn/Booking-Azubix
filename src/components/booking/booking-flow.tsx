@@ -13,18 +13,20 @@ import { PaymentStep } from "@/components/booking/payment-step";
 import { SuccessPanel } from "@/components/booking/success-panel";
 import { BOOKING_STEPS, Stepper, type BookingStepId } from "@/components/booking/stepper";
 import { TimeStep, type LoadState } from "@/components/booking/time-step";
+import { TypeStep } from "@/components/booking/type-step";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { BookingErrorBody } from "@/lib/booking/errors";
 import type {
   Booking,
+  BookingType,
   CalendarDay,
   ClassLevel,
   DayAvailability,
   IsoDate,
   TimeSlotId,
 } from "@/lib/booking/types";
-import { CLASS_PRICES_IDR } from "@/lib/booking/constants";
+import { PAYMENT_HOLD_MINUTES } from "@/lib/booking/constants";
 import { createBookingSchema } from "@/lib/booking/validation";
 import { localizeFieldErrors } from "@/lib/i18n/field-errors";
 import { format } from "@/lib/i18n/get-dictionary";
@@ -59,7 +61,8 @@ export function BookingFlow({
 function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] }) {
   const { dict } = useI18n();
   const [calendar, setCalendar] = React.useState(initialCalendar);
-  const [step, setStep] = React.useState<Step>("level");
+  const [step, setStep] = React.useState<Step>("type");
+  const [bookingType, setBookingType] = React.useState<BookingType | null>(null);
   const [level, setLevel] = React.useState<ClassLevel | null>(null);
   const [date, setDate] = React.useState<IsoDate | null>(null);
   const [timeSlot, setTimeSlot] = React.useState<TimeSlotId | null>(null);
@@ -118,6 +121,12 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
     }
   }, []);
 
+  function selectBookingType(next: BookingType) {
+    setBookingType(next);
+    setFormError(null);
+    setStep("level");
+  }
+
   function selectLevel(next: ClassLevel) {
     setLevel(next);
     setFormError(null);
@@ -153,6 +162,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   function submitDetails() {
     const result = createBookingSchema.safeParse({
       ...details,
+      bookingType,
       level,
       date,
       timeSlot,
@@ -163,12 +173,16 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       return;
     }
     setFieldErrors({});
-    setStep("payment");
+    void createBooking();
   }
 
-  async function confirmBooking() {
-    if (submitLock.current || !level || !date || !timeSlot) return;
-    const result = createBookingSchema.safeParse({ ...details, level, date, timeSlot });
+  /**
+   * Creates the booking as an UNPAID hold, so the slot is ours and a payment
+   * code exists *before* the student transfers any money.
+   */
+  async function createBooking() {
+    if (submitLock.current || !bookingType || !level || !date || !timeSlot) return;
+    const result = createBookingSchema.safeParse({ ...details, bookingType, level, date, timeSlot });
     if (!result.success) {
       const fields = result.error.issues.map((issue) => String(issue.path[0] ?? "form"));
       setFieldErrors(localizeFieldErrors(dict, fields));
@@ -185,12 +199,12 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...details, level, date, timeSlot }),
+        body: JSON.stringify({ ...details, bookingType, level, date, timeSlot }),
       });
 
       if (response.ok) {
         setBooking((await response.json()) as Booking);
-        setStep("success");
+        setStep("payment");
         void refreshCalendar();
         return;
       }
@@ -230,8 +244,56 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
     }
   }
 
+  /** The hold ran out: the server has released (or will release) the slot. */
+  function paymentExpired() {
+    setFormError(
+      format(dict.booking.payment.expiredError, { minutes: PAYMENT_HOLD_MINUTES }),
+    );
+    setBooking(null);
+    setTimeSlot(null);
+    setStep("time");
+    if (date) void loadDay(date);
+    void refreshCalendar();
+  }
+
+  async function reportPaid(payerName: string) {
+    if (submitLock.current || !booking?.paymentCode) return;
+    submitLock.current = true;
+    setSubmitting(true);
+    setFormError(null);
+
+    try {
+      const response = await fetch(`/api/bookings/${booking.id}/paid`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentCode: booking.paymentCode, payerName }),
+      });
+
+      if (response.ok) {
+        setBooking((await response.json()) as Booking);
+        setStep("success");
+        return;
+      }
+
+      const error = (await response.json()) as BookingErrorBody;
+      if (error.code === "PAYMENT_EXPIRED" || error.code === "NOT_FOUND") {
+        paymentExpired();
+      } else if (error.code === "VALIDATION_FAILED") {
+        setFormError(dict.booking.payment.payerNameError);
+      } else {
+        setFormError(dict.booking.payment.genericError);
+      }
+    } catch {
+      setFormError(dict.booking.networkError);
+    } finally {
+      setSubmitting(false);
+      submitLock.current = false;
+    }
+  }
+
   function reset() {
-    setStep("level");
+    setStep("type");
+    setBookingType(null);
     setLevel(null);
     setDate(null);
     setTimeSlot(null);
@@ -244,7 +306,9 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
     void refreshCalendar();
   }
 
-  const canGoBack = step !== "level" && step !== "success";
+  // On the payment step the slot is already held; leaving would orphan it, so
+  // the only ways out are paying or letting the hold run out.
+  const canGoBack = step !== "type" && step !== "payment" && step !== "success";
 
   return (
     <Card className="overflow-hidden">
@@ -273,7 +337,13 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
           </p>
         )}
 
-        {step === "level" && <LevelStep value={level} onSelect={selectLevel} />}
+        {step === "type" && (
+          <TypeStep value={bookingType} onSelect={selectBookingType} />
+        )}
+
+        {step === "level" && bookingType && (
+          <LevelStep bookingType={bookingType} value={level} onSelect={selectLevel} />
+        )}
 
         {step === "date" && (
           <DateStep calendar={calendar} value={date} onSelect={selectDate} />
@@ -305,15 +375,12 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
           />
         )}
 
-        {step === "payment" && level && date && timeSlot && (
+        {step === "payment" && booking && (
           <PaymentStep
-            level={level}
-            date={date}
-            timeSlot={timeSlot}
-            details={details}
-            price={CLASS_PRICES_IDR[level]}
+            booking={booking}
             busy={submitting}
-            onConfirm={() => void confirmBooking()}
+            onConfirm={(payerName) => void reportPaid(payerName)}
+            onExpired={paymentExpired}
           />
         )}
 
@@ -336,8 +403,8 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
             </Button>
 
             {step === "details" && (
-              <Button type="button" size="lg" onClick={submitDetails}>
-                {dict.booking.buttons.reviewBooking}
+              <Button type="button" size="lg" onClick={submitDetails} disabled={submitting}>
+                {submitting ? dict.booking.payment.creating : dict.booking.buttons.reviewBooking}
                 <ArrowRight aria-hidden="true" />
               </Button>
             )}

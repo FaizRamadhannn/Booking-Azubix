@@ -17,6 +17,7 @@ const VALID = {
   studentName: "Azam",
   whatsappGroupName: "Deutsch A1 Pagi",
   lastMaterial: "Lektion 3 - Perfekt",
+  bookingType: "REGULAR",
   level: "A1",
   date: "2026-08-31",
   timeSlot: "10:00-11:30",
@@ -43,6 +44,12 @@ describe("parseCreateBookingInput", () => {
     });
     assert.equal(parsed.studentName, "Azam");
     assert.equal(parsed.level, "A1");
+  });
+
+  test("accepts private and regular, rejects any other booking type", () => {
+    assert.equal(parseCreateBookingInput({ ...VALID, bookingType: "PRIVATE" }).bookingType, "PRIVATE");
+    expectRejection({ ...VALID, bookingType: "GROUP" }, "bookingType");
+    expectRejection({ ...VALID, bookingType: undefined }, "bookingType");
   });
 
   test("rejects B2 and any other unknown level", () => {

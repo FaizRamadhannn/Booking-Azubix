@@ -17,6 +17,7 @@ import type { Booking } from "@/lib/booking/types";
 import { format } from "@/lib/i18n/get-dictionary";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { intlTag } from "@/lib/i18n/locale";
+import { formatRupiah } from "@/lib/utils";
 
 function slotRange(booking: Booking): string {
   const slot = findTimeSlot(booking.timeSlot);
@@ -43,12 +44,14 @@ export function BookingsTable({
             <TableRow>
               <TableHead scope="col">{t.date}</TableHead>
               <TableHead scope="col">{t.time}</TableHead>
+              <TableHead scope="col">{t.bookingType}</TableHead>
               <TableHead scope="col">{t.level}</TableHead>
               <TableHead scope="col">{t.student}</TableHead>
               <TableHead scope="col">{t.whatsappGroup}</TableHead>
               <TableHead scope="col">{t.lastMaterial}</TableHead>
               <TableHead scope="col">{t.status}</TableHead>
               <TableHead scope="col">{t.paymentStatus}</TableHead>
+              <TableHead scope="col">{t.paymentCode}</TableHead>
               <TableHead scope="col">
                 <span className="sr-only">{t.actions}</span>
               </TableHead>
@@ -62,6 +65,9 @@ export function BookingsTable({
                 </TableCell>
                 <TableCell className="whitespace-nowrap tabular-nums">
                   {slotRange(booking)}
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {dict.common.bookingType[booking.bookingType]}
                 </TableCell>
                 <TableCell>
                   <LevelBadge level={booking.level} />
@@ -80,6 +86,23 @@ export function BookingsTable({
                 </TableCell>
                 <TableCell>
                   <PaymentStatusBadge status={booking.paymentStatus} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  {booking.paymentCode ? (
+                    <>
+                      <span className="font-mono">{booking.paymentCode}</span>
+                      <span className="block text-xs tabular-nums text-muted-foreground">
+                        {formatRupiah(booking.amountDue)}
+                      </span>
+                      {booking.payerName && (
+                        <span className="block max-w-40 truncate text-xs text-muted-foreground">
+                          {t.payerName}: {booking.payerName}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    "—"
+                  )}
                 </TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -122,6 +145,24 @@ export function BookingsTable({
             </div>
 
             <dl className="mt-3 space-y-1 text-sm">
+              {booking.paymentCode && (
+                <div className="flex gap-2">
+                  <dt className="text-muted-foreground">{t.paymentCode}</dt>
+                  <dd className="font-mono">
+                    {booking.paymentCode} · {formatRupiah(booking.amountDue)}
+                  </dd>
+                </div>
+              )}
+              {booking.payerName && (
+                <div className="flex gap-2">
+                  <dt className="text-muted-foreground">{t.payerName}</dt>
+                  <dd className="truncate">{booking.payerName}</dd>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <dt className="text-muted-foreground">{t.bookingType}</dt>
+                <dd>{dict.common.bookingType[booking.bookingType]}</dd>
+              </div>
               <div className="flex gap-2">
                 <dt className="text-muted-foreground">{t.level}</dt>
                 <dd>

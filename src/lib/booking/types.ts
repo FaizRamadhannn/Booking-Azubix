@@ -1,6 +1,7 @@
 import type {
   BOOKING_RECORD_STATUSES,
   BOOKING_STATUSES,
+  BOOKING_TYPES,
   CLASS_LEVELS,
   PAYMENT_STATUSES,
   TIME_SLOTS,
@@ -26,6 +27,9 @@ export type BookingRecordStatus = (typeof BOOKING_RECORD_STATUSES)[number];
 
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+/** `"REGULAR" | "PRIVATE"` — only regular classes are paid by QRIS. */
+export type BookingType = (typeof BOOKING_TYPES)[number];
+
 /** A calendar date in {@link import("./constants").TIMEZONE}, formatted `YYYY-MM-DD`. */
 export type IsoDate = string;
 
@@ -34,12 +38,21 @@ export interface Booking {
   studentName: string;
   whatsappGroupName: string;
   lastMaterial: string;
+  bookingType: BookingType;
   level: ClassLevel;
   date: IsoDate;
   timeSlot: TimeSlotId;
   status: BookingRecordStatus;
   price: number;
   paymentStatus: PaymentStatus;
+  /** `AZB-XXXXXX`; null only on bookings made before payment references existed. */
+  paymentCode: string | null;
+  /** Exact amount to transfer: price plus the unique code. */
+  amountDue: number;
+  /** ISO timestamp; an `UNPAID` booking is released after this. */
+  paymentDeadline: string | null;
+  /** Name the transfer was made under, entered when the student reports payment. */
+  payerName: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +62,7 @@ export interface CreateBookingInput {
   studentName: string;
   whatsappGroupName: string;
   lastMaterial: string;
+  bookingType: BookingType;
   level: ClassLevel;
   date: IsoDate;
   timeSlot: TimeSlotId;

@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 
 /** Ids and order are business logic; the display label lives in the dictionary. */
 export const BOOKING_STEPS = [
+  "type",
   "level",
   "date",
   "time",

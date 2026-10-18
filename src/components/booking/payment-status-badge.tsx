@@ -1,6 +1,6 @@
 "use client";
 
-import { BadgeCheck, Clock3 } from "lucide-react";
+import { BadgeCheck, CircleDashed, Clock3 } from "lucide-react";
 
 import type { PaymentStatus } from "@/lib/booking/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
@@ -14,7 +14,8 @@ export function PaymentStatusBadge({
   className?: string;
 }) {
   const { dict } = useI18n();
-  const Icon = status === "CONFIRMED" ? BadgeCheck : Clock3;
+  const Icon =
+    status === "CONFIRMED" ? BadgeCheck : status === "PENDING" ? Clock3 : CircleDashed;
 
   return (
     <span
@@ -22,7 +23,9 @@ export function PaymentStatusBadge({
         "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
         status === "CONFIRMED"
           ? "border-success/40 bg-success-muted text-success"
-          : "border-warning/40 bg-warning-muted text-warning",
+          : status === "PENDING"
+            ? "border-warning/40 bg-warning-muted text-warning"
+            : "border-border bg-muted text-muted-foreground",
         className,
       )}
     >

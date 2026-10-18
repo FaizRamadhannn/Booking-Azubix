@@ -3,8 +3,11 @@ import { describe, test } from "node:test";
 
 import {
   CLASS_LEVELS,
-  CLASS_PRICES_IDR,
+  amountDueNow,
   OPEN_WEEKDAYS,
+  PRIVATE_PACKAGES,
+  pricePerSession,
+  privatePackageTotal,
   TIME_SLOTS,
 } from "./constants";
 import {
@@ -25,8 +28,28 @@ describe("business constants", () => {
     assert.ok(!(CLASS_LEVELS as readonly string[]).includes("B2"));
   });
 
-  test("each class level has its configured price in rupiah", () => {
-    assert.deepEqual(CLASS_PRICES_IDR, { A1: 50_000, A2: 65_000, B1: 80_000 });
+  test("regular classes cost 50.000 / 65.000 / 80.000 per session from A1 to B1", () => {
+    assert.deepEqual(
+      CLASS_LEVELS.map((level) => pricePerSession("REGULAR", level)),
+      [50_000, 65_000, 80_000],
+    );
+  });
+
+  test("private packages match the published price list", () => {
+    assert.deepEqual(PRIVATE_PACKAGES, {
+      A1: { pricePerSession: 30_000, sessions: 35 },
+      A2: { pricePerSession: 36_000, sessions: 35 },
+      B1: { pricePerSession: 47_000, sessions: 38 },
+    });
+    assert.equal(pricePerSession("PRIVATE", "A2"), 36_000);
+    assert.equal(privatePackageTotal("A1"), 1_050_000);
+    assert.equal(privatePackageTotal("A2"), 1_260_000);
+    assert.equal(privatePackageTotal("B1"), 1_786_000);
+  });
+
+  test("QRIS asks for one session on regular and the full package on private", () => {
+    assert.equal(amountDueNow("REGULAR", "B1"), 80_000);
+    assert.equal(amountDueNow("PRIVATE", "B1"), 1_786_000);
   });
 
   test("the six published slots are the only ones", () => {

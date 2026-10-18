@@ -80,7 +80,11 @@ export function BookingDetailModal({
   }
 
   const canCancel = booking?.status === "BOOKED";
-  const canConfirmPayment = booking?.paymentStatus === "PENDING";
+  // An admin may confirm before the student clicks "paid", as long as the
+  // booking still holds its slot.
+  const canConfirmPayment =
+    booking?.status !== "CANCELLED" &&
+    (booking?.paymentStatus === "UNPAID" || booking?.paymentStatus === "PENDING");
   const canReschedule =
     booking?.status === "BOOKED" || booking?.status === "EXPIRED";
 
