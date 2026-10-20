@@ -39,13 +39,20 @@ export const de = {
     navBookClassShort: "Buchen",
     footerTagline: "Azubixbook — Deutschkurse für die Niveaus A1, A2 und B1.",
     footerTimezoneNote: "Alle Kurszeiten werden in {timezone} angezeigt.",
+    navFeatures: "Vorteile",
+    navProcess: "So funktioniert's",
+    navPrivate: "Privat",
+    navFaq: "FAQ",
   },
 
   hero: {
-    headline: "Bequemer lernen zur richtigen Zeit",
+    badge: "Deutschkurse A1 · A2 · B1",
+    headline: "Bequemer lernen",
+    headlineAccent: "zur richtigen Zeit",
     subcopy:
       "Wählen Sie Ihr Niveau, einen freien Termin an einem Wochentag und teilen Sie Ihrem Lehrer mit, was Sie zuletzt behandelt haben. Sie sehen sofort, welche Zeiten noch frei sind.",
     cta: "Kurs buchen",
+    ctaPrivate: "Privatpakete ansehen",
     facts: {
       weekdays: {
         title: "Montag bis Freitag",
@@ -59,6 +66,62 @@ export const de = {
         title: "Niveaus {levels}",
         detail: "Buchen Sie das Niveau, das Sie gerade lernen.",
       },
+      qris: {
+        title: "Sofort per QRIS bezahlen",
+        detail: "Mit jeder Mobile-Banking- oder E-Wallet-App scannen.",
+      },
+    },
+  },
+
+  landing: {
+    process: {
+      heading: "In drei Schritten zum Kurs",
+      subtext: "Von der Kurswahl bis zur Zahlung in wenigen Minuten.",
+      steps: [
+        {
+          title: "Kurs wählen",
+          detail: "Regulär pro Termin oder ein Privatpaket mit günstigerem Preis pro Termin.",
+        },
+        {
+          title: "Freien Termin wählen",
+          detail: "Sehen Sie live, welche Zeiten an Wochentagen für Ihr Niveau frei sind.",
+        },
+        {
+          title: "Per QRIS bezahlen",
+          detail: "Ihr Termin wird während der Zahlung reserviert, danach bestätigt der Admin.",
+        },
+      ],
+    },
+    private: {
+      eyebrow: "Privatunterricht",
+      heading: "Wählen Sie Ihr Privatpaket",
+      subtext: "Günstiger pro Termin, eins zu eins mit Ihrer Lehrkraft. Das ganze Paket wird vorab per QRIS bezahlt.",
+    },
+    faq: {
+      heading: "Häufige Fragen",
+      items: [
+        {
+          question: "Was ist der Unterschied zwischen regulär und privat?",
+          answer: "Reguläre Kurse werden pro Termin bezahlt. Privatpakete sind pro Termin günstiger und enthalten E-Book, Übungen und Kursaufzeichnungen, werden aber vollständig im Voraus bezahlt.",
+        },
+        {
+          question: "Wie früh muss ich buchen?",
+          answer: "Buchen Sie mindestens einen Tag (H-1) vor dem Kurs. Sie können bis zu {days} Tage im Voraus buchen.",
+        },
+        {
+          question: "Wie funktioniert die Zahlung?",
+          answer: "Nach der Terminwahl wird der Termin {minutes} Minuten für Sie reserviert. Scannen Sie den QRIS-Code, geben Sie den angezeigten Betrag ein und tippen Sie auf \"Saya Sudah Bayar\". Der Admin bestätigt Ihre Überweisung manuell.",
+        },
+        {
+          question: "Kann ich meinen Termin ändern?",
+          answer: "Bitte wenden Sie sich mit Ihrem Zahlungscode an den Admin. Der Admin kann Ihre Buchung auf einen anderen freien Termin verschieben.",
+        },
+      ],
+    },
+    cta: {
+      heading: "Bereit loszulegen?",
+      subtext: "Wählen Sie einen Termin, der in Ihre Woche passt, und sichern Sie ihn sich noch heute.",
+      button: "Jetzt Kurs buchen",
     },
   },
 

@@ -15,33 +15,42 @@ import { format } from "@/lib/i18n/get-dictionary";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { cn, formatRupiah } from "@/lib/utils";
 
-/** Pricing-tier cards for the private packages, one per level. */
+/**
+ * Pricing-tier cards for the private packages, one per level, styled after the
+ * Stitch "Select Your Tier" section. Used both inside the booking flow and as
+ * the landing page's private pricing section (`showHeading={false}` there,
+ * since that section supplies its own heading).
+ */
 export function PrivatePlans({
   value,
   onSelect,
+  showHeading = true,
 }: {
   value: ClassLevel | null;
   onSelect: (level: ClassLevel) => void;
+  showHeading?: boolean;
 }) {
   const { dict } = useI18n();
   const t = dict.booking.privatePlans;
 
   return (
     <section
-      aria-labelledby="private-plans-heading"
-      className="-mx-4 -mt-2 rounded-xl bg-gradient-to-br from-[#073b73] via-[#0d5c99] to-[#1674ad] px-4 py-8 text-white sm:-mx-6 sm:px-6 sm:py-10"
+      aria-labelledby={showHeading ? "private-plans-heading" : undefined}
+      aria-label={showHeading ? undefined : t.heading}
     >
-      <div className="text-center">
-        <h4
-          id="private-plans-heading"
-          className="text-2xl font-bold tracking-tight text-white sm:text-3xl"
-        >
-          {t.heading}
-        </h4>
-        <p className="mt-2 text-sm text-cyan-100">{t.subtext}</p>
-      </div>
+      {showHeading && (
+        <div className="text-center">
+          <h4
+            id="private-plans-heading"
+            className="text-2xl font-semibold tracking-tight sm:text-3xl"
+          >
+            {t.heading}
+          </h4>
+          <p className="mt-2 text-sm text-muted-foreground">{t.subtext}</p>
+        </div>
+      )}
 
-      <div className="mt-8 grid gap-6 md:grid-cols-3 md:gap-4">
+      <div className={cn("grid gap-6 md:grid-cols-3 md:gap-5", showHeading && "mt-8")}>
         {CLASS_LEVELS.map((level) => {
           const pkg = PRIVATE_PACKAGES[level];
           const featured = level === PRIVATE_FEATURED_LEVEL;
@@ -50,44 +59,43 @@ export function PrivatePlans({
             <article
               key={level}
               className={cn(
-                "relative flex flex-col rounded-2xl border p-6",
-                featured
-                  ? "border-white bg-white text-slate-900 shadow-xl shadow-[#041f3d]/40"
-                  : "border-white/15 bg-white/[0.07] text-white",
-                selected && "ring-2 ring-amber-400 ring-offset-2 ring-offset-[#0d5c99]",
+                "glass-card glass-hover group relative flex flex-col overflow-hidden p-6 sm:p-8",
+                featured && "neon-border",
+                selected && "border-primary ring-2 ring-primary",
               )}
             >
               {featured && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-amber-400 px-3 py-1 text-[0.65rem] font-bold uppercase tracking-wide text-slate-950 shadow">
-                  {t.featured}
-                </span>
+                <>
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0 -z-10 bg-primary/5 transition-colors group-hover:bg-primary/10"
+                  />
+                  <span className="absolute top-4 right-4 rounded-full bg-primary/20 px-3 py-1 text-[0.65rem] font-bold tracking-wide text-primary uppercase">
+                    {t.featured}
+                  </span>
+                </>
               )}
 
-              <h5 className="text-sm font-semibold">Private {level}</h5>
-              <p className={cn("mt-1 text-xs", featured ? "text-slate-500" : "text-cyan-100/80")}>
+              <h5 className="text-xl font-medium tracking-tight">Private {level}</h5>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {dict.levels[level].split(" — ")[0]}
               </p>
 
-              <p className="mt-5 flex items-baseline gap-1">
-                <span className="text-2xl font-bold tabular-nums lg:text-3xl">
+              <p className="mt-6 flex items-baseline gap-1">
+                <span className="text-3xl font-bold tabular-nums sm:text-4xl">
                   {formatRupiah(pkg.pricePerSession)}
                 </span>
-                <span className={cn("text-sm", featured ? "text-slate-500" : "text-cyan-100/80")}>
-                  {t.perSession}
-                </span>
+                <span className="text-sm text-muted-foreground">{t.perSession}</span>
               </p>
-              <p className={cn("mt-1 text-xs tabular-nums", featured ? "text-slate-500" : "text-cyan-100/80")}>
+              <p className="mt-1 text-xs text-muted-foreground tabular-nums">
                 {format(t.total, { total: formatRupiah(privatePackageTotal(level)) })}
               </p>
 
-              <ul className={cn("mt-6 flex-1 space-y-3 text-sm", featured ? "text-slate-700" : "text-cyan-50")}>
+              <ul className="mt-6 mb-8 flex-1 space-y-3 text-sm">
                 {[format(t.sessions, { sessions: pkg.sessions }), ...PRIVATE_PACKAGE_INCLUDES].map(
                   (item) => (
-                    <li key={item} className="flex items-start gap-2.5">
-                      <Check
-                        aria-hidden="true"
-                        className={cn("mt-0.5 size-4 shrink-0", featured ? "text-primary" : "text-cyan-300")}
-                      />
+                    <li key={item} className="flex items-start gap-3">
+                      <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
                       {item}
                     </li>
                   ),
@@ -99,10 +107,10 @@ export function PrivatePlans({
                 aria-pressed={selected}
                 onClick={() => onSelect(level)}
                 className={cn(
-                  "mt-8 h-11 rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0d5c99]",
+                  "h-12 rounded-xl text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.98]",
                   featured
-                    ? "bg-amber-500 text-slate-950 hover:bg-amber-400"
-                    : "border border-white/30 text-white hover:bg-white/10",
+                    ? "bg-primary text-primary-foreground hover:bg-primary/90 hover:shadow-[0_0_20px_rgb(255_107_0/40%)]"
+                    : "border border-foreground/20 hover:border-primary hover:bg-secondary",
                 )}
               >
                 {format(t.select, { level })}
@@ -113,25 +121,25 @@ export function PrivatePlans({
       </div>
 
       <div className="mt-8 grid gap-6 sm:grid-cols-2">
-        <div>
-          <p className="text-sm font-semibold text-white">{t.extrasHeading}</p>
+        <div className="glass-card p-5">
+          <p className="text-sm font-semibold">{t.extrasHeading}</p>
           <ul className="mt-3 flex flex-wrap gap-2">
             {PRIVATE_PACKAGE_EXTRAS.map((item) => (
               <li
                 key={item}
-                className="rounded-md bg-white/15 px-2.5 py-1 text-xs font-semibold text-white ring-1 ring-white/20"
+                className="rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary"
               >
                 + {item}
               </li>
             ))}
           </ul>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-white">{t.scheduleHeading}</p>
-          <p className="mt-3 flex items-center gap-2 text-sm text-cyan-50">
-            <CalendarDays aria-hidden="true" className="size-4 text-cyan-300" />
+        <div className="glass-card p-5">
+          <p className="text-sm font-semibold">{t.scheduleHeading}</p>
+          <p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <CalendarDays aria-hidden="true" className="size-4 text-primary" />
             {t.schedule}
-            <span className="rounded-md bg-amber-400 px-2 py-0.5 text-xs font-bold uppercase text-slate-950">
+            <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-bold text-primary-foreground uppercase">
               {t.scheduleFlexible}
             </span>
           </p>

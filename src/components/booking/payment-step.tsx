@@ -83,38 +83,34 @@ export function PaymentStep({
     <div>
       <section
         aria-labelledby="qris-heading"
-        className="relative isolate -mx-4 -mt-4 overflow-hidden bg-gradient-to-br from-[#073b73] via-[#0d5c99] to-[#1674ad] px-4 py-6 text-white sm:-mx-6 sm:-mt-6 sm:px-6 sm:py-8"
+        className="relative isolate -mx-4 -mt-4 overflow-hidden border-b border-foreground/10 bg-gradient-to-b from-primary/15 via-background/40 to-transparent px-4 py-6 text-foreground sm:-mx-6 sm:-mt-6 sm:px-6 sm:py-8"
       >
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-2/5 bg-white/[0.045] [clip-path:polygon(45%_0,100%_0,100%_100%,0_100%)]"
-        />
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 right-0 w-1/5 bg-cyan-200/[0.07] [clip-path:polygon(70%_0,100%_0,100%_100%,0_100%)]"
+          className="orange-glow pointer-events-none absolute -top-24 left-1/2 -z-10 h-72 w-full -translate-x-1/2 opacity-60"
         />
 
         <div className="relative mx-auto max-w-xl text-center">
-          <span className="inline-flex rounded-sm bg-white px-2.5 py-1 text-sm font-bold text-[#0b5794]">
+          <span className="inline-flex rounded-full bg-primary px-3 py-1 text-sm font-bold text-primary-foreground">
             QRIS
           </span>
           <h4 id="qris-heading" className="mt-3 text-xl font-semibold">
             {t.heading}
           </h4>
-          <p className="mt-2 text-sm text-cyan-50">
+          <p className="mt-2 text-sm text-muted-foreground">
             {dict.common.bookingType[bookingType]} · Level {level}
           </p>
           <p className="mt-1 text-3xl font-bold tabular-nums sm:text-4xl">
             {formatRupiah(booking.amountDue)}
           </p>
-          <p className="mt-1 text-xs text-cyan-100">
+          <p className="mt-1 text-xs text-muted-foreground">
             {isPrivate ? t.privateAmountLabel : t.amountLabel}
           </p>
 
           {booking.paymentCode && (
-            <p className="mt-3 text-sm text-cyan-50">
+            <p className="mt-3 text-sm text-muted-foreground">
               {t.paymentCodeLabel}{" "}
-              <span className="rounded bg-white/15 px-2 py-0.5 font-mono font-semibold tracking-wider text-white">
+              <span className="rounded-md bg-primary/15 px-2 py-0.5 font-mono font-semibold tracking-wider text-primary">
                 {booking.paymentCode}
               </span>
             </p>
@@ -122,7 +118,7 @@ export function PaymentStep({
 
           {left !== null && (
             <p
-              className="mx-auto mt-3 inline-flex items-center gap-2 rounded-full bg-amber-400 px-3 py-1 text-sm font-semibold text-slate-950"
+              className="mx-auto mt-3 inline-flex items-center gap-2 neon-border rounded-full bg-primary/10 px-3 py-1 text-sm font-semibold text-primary"
               aria-live={left <= 60 ? "polite" : "off"}
             >
               <Timer aria-hidden="true" className="size-4" />
@@ -131,7 +127,7 @@ export function PaymentStep({
             </p>
           )}
 
-          <div className="mx-auto mt-5 max-w-[22rem] rounded-xl bg-white p-3 shadow-lg sm:p-4">
+          <div className="mx-auto mt-5 max-w-[22rem] rounded-2xl bg-white p-3 shadow-[0_0_40px_rgb(255_107_0/20%)] sm:p-4">
             <Image
               src={qrisImage}
               alt={t.qrisAlt}
@@ -141,13 +137,13 @@ export function PaymentStep({
             />
           </div>
 
-          <p className="mx-auto mt-4 max-w-md text-sm font-medium text-white">
+          <p className="mx-auto mt-4 max-w-md text-sm font-medium text-foreground">
             {t.scanInstruction}
           </p>
-          <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-cyan-100">
+          <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-muted-foreground">
             {t.amountInstruction}
           </p>
-          <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-cyan-100/80">
+          <p className="mx-auto mt-2 max-w-md text-xs leading-5 text-muted-foreground/80">
             {format(t.holdNote, { minutes: PAYMENT_HOLD_MINUTES })}
           </p>
         </div>
@@ -186,7 +182,7 @@ export function PaymentStep({
                 {PRIVATE_PACKAGE_EXTRAS.map((item) => (
                   <li
                     key={item}
-                    className="rounded-full bg-amber-400/20 px-2.5 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                    className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs font-semibold text-primary"
                   >
                     + {item}
                   </li>
@@ -262,7 +258,7 @@ export function PaymentStep({
           onConfirm(name);
         }}
         disabled={busy || left === 0}
-        className="mt-5 w-full bg-amber-500 text-slate-950 hover:bg-amber-400 focus-visible:ring-amber-300"
+        className="mt-5 h-12 w-full rounded-xl font-bold hover:bg-primary/90 hover:shadow-[0_0_20px_rgb(255_107_0/40%)]"
       >
         {busy && <Loader2 aria-hidden="true" className="animate-spin" />}
         {busy ? t.processing : t.payButton}

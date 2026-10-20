@@ -38,13 +38,20 @@ export const en = {
     navBookClassShort: "Book",
     footerTagline: "Azubixbook — German lessons for levels A1, A2 and B1.",
     footerTimezoneNote: "All class times are shown in {timezone}.",
+    navFeatures: "Why us",
+    navProcess: "How it works",
+    navPrivate: "Private",
+    navFaq: "FAQ",
   },
 
   hero: {
-    headline: "Learn more comfortably at the right time",
+    badge: "German classes A1 · A2 · B1",
+    headline: "Learn more comfortably",
+    headlineAccent: "at the right time",
     subcopy:
       "Pick your level, choose a free weekday slot and tell your tutor what you covered last time. You will see straight away which times are still open.",
     cta: "Book a class",
+    ctaPrivate: "See private packages",
     facts: {
       weekdays: {
         title: "Monday to Friday",
@@ -58,6 +65,62 @@ export const en = {
         title: "Levels {levels}",
         detail: "Book the level you are studying right now.",
       },
+      qris: {
+        title: "Pay instantly with QRIS",
+        detail: "Scan with any mobile banking or e-wallet app.",
+      },
+    },
+  },
+
+  landing: {
+    process: {
+      heading: "Three steps to your class",
+      subtext: "From choosing a class to paying, in a couple of minutes.",
+      steps: [
+        {
+          title: "Choose your class",
+          detail: "Regular per session, or a private package at a lower price per session.",
+        },
+        {
+          title: "Pick a free slot",
+          detail: "See live which weekday times are still open for your level.",
+        },
+        {
+          title: "Pay with QRIS",
+          detail: "Your slot is held while you pay, then the admin confirms it.",
+        },
+      ],
+    },
+    private: {
+      eyebrow: "Private class",
+      heading: "Choose your private package",
+      subtext: "Cheaper per session, one-on-one with your tutor. The whole package is paid up front via QRIS.",
+    },
+    faq: {
+      heading: "Frequently asked questions",
+      items: [
+        {
+          question: "What is the difference between regular and private?",
+          answer: "Regular classes are paid per session. Private packages cost less per session and include an e-book, exercises and class recordings, but the whole package is paid up front.",
+        },
+        {
+          question: "How far in advance do I need to book?",
+          answer: "Book at least one day (H-1) before the class. You can book up to {days} days ahead.",
+        },
+        {
+          question: "How does payment work?",
+          answer: "After you pick a slot it is held for {minutes} minutes. Scan the QRIS code, enter the amount shown, then tap \"Saya Sudah Bayar\". The admin confirms your transfer manually.",
+        },
+        {
+          question: "Can I change my schedule?",
+          answer: "Please contact the admin with your payment code. The admin can move your booking to another free slot.",
+        },
+      ],
+    },
+    cta: {
+      heading: "Ready to start learning?",
+      subtext: "Pick a slot that fits your week and lock it in today.",
+      button: "Book a class now",
     },
   },
 

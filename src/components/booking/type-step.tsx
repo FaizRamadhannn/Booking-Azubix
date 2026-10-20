@@ -38,8 +38,8 @@ export function TypeStep({
               aria-pressed={selected}
               onClick={() => onSelect(type)}
               className={cn(
-                "group flex h-full flex-col rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-primary/50 hover:bg-accent",
-                selected && "border-primary bg-primary/5 ring-1 ring-primary",
+                "glass-card glass-hover group flex h-full flex-col rounded-2xl p-5 text-left",
+                selected && "neon-border bg-primary/10",
               )}
             >
               <span className="flex items-center justify-between">

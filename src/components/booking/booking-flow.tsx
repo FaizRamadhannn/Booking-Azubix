@@ -10,6 +10,7 @@ import {
 } from "@/components/booking/details-step";
 import { LevelStep } from "@/components/booking/level-step";
 import { PaymentStep } from "@/components/booking/payment-step";
+import { onPrivatePackageRequest } from "@/components/booking/private-package-request";
 import { SuccessPanel } from "@/components/booking/success-panel";
 import { BOOKING_STEPS, Stepper, type BookingStepId } from "@/components/booking/stepper";
 import { TimeStep, type LoadState } from "@/components/booking/time-step";
@@ -82,13 +83,22 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   const submitLock = React.useRef(false);
 
   const headingRef = React.useRef<HTMLHeadingElement>(null);
+  const cardRef = React.useRef<HTMLDivElement>(null);
   const hasMounted = React.useRef(false);
+  /** Set when a step change came from outside the card and should bring it into view. */
+  const scrollIntoViewOnStep = React.useRef(false);
 
   // Move focus to the step heading on every transition so keyboard and screen
   // reader users are not stranded at the top of the page.
   React.useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;
+      return;
+    }
+    if (scrollIntoViewOnStep.current) {
+      scrollIntoViewOnStep.current = false;
+      headingRef.current?.focus({ preventScroll: true });
+      cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       return;
     }
     headingRef.current?.focus();
@@ -109,6 +119,35 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       setAvailabilityState("error");
     }
   }, []);
+
+  // A package picked on the landing page's pricing cards jumps straight to the
+  // date step. Ignored while a slot is held for payment or once it is booked.
+  const stepRef = React.useRef(step);
+  React.useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
+  React.useEffect(
+    () =>
+      onPrivatePackageRequest((next) => {
+        // A slot is already held or booked: don't throw that away, just show it.
+        if (stepRef.current === "payment" || stepRef.current === "success") {
+          cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+        // Already on the date step, so the step effect won't fire to scroll.
+        if (stepRef.current === "date") {
+          cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+        setBookingType("PRIVATE");
+        setLevel(next);
+        setDate(null);
+        setTimeSlot(null);
+        setFormError(null);
+        setStep("date");
+        scrollIntoViewOnStep.current = stepRef.current !== "date";
+      }),
+    [],
+  );
 
   const refreshCalendar = React.useCallback(async () => {
     try {
@@ -311,7 +350,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   const canGoBack = step !== "type" && step !== "payment" && step !== "success";
 
   return (
-    <Card className="overflow-hidden">
+    <Card ref={cardRef} className="glass-card scroll-mt-20 overflow-hidden rounded-3xl ring-0">
       <CardContent className="p-4 sm:p-6">
         {step !== "success" && (
           <div className="mb-6">
@@ -330,7 +369,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
         {formError && step !== "success" && (
           <p
             role="alert"
-            className="mb-4 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            className="mb-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive"
           >
             <AlertCircle aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             {formError}
@@ -403,7 +442,13 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
             </Button>
 
             {step === "details" && (
-              <Button type="button" size="lg" onClick={submitDetails} disabled={submitting}>
+              <Button
+                type="button"
+                size="lg"
+                onClick={submitDetails}
+                disabled={submitting}
+                className="h-11 rounded-full px-6 font-semibold hover:bg-primary/90 hover:shadow-[0_0_20px_rgb(255_107_0/40%)]"
+              >
                 {submitting ? dict.booking.payment.creating : dict.booking.buttons.reviewBooking}
                 <ArrowRight aria-hidden="true" />
               </Button>
