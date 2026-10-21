@@ -206,3 +206,12 @@ See [`project_context.md`](./project_context.md) for architecture and decisions.
 > This application is currently used in a real-world setting by me and my students to manage class bookings. For security and privacy reasons, I have decided not to provide a publicly accessible demo at this time.
 >
 > The source code is available for review, with sensitive credentials, production data, and private configuration excluded from the repository. The project can be evaluated through its architecture, implementation, security controls, database constraints, and automated testing.
+
+## Daily student backup
+
+`scripts/backup-students.mjs` copies `bookings` and `private_packages` from Supabase to
+`~/Backups/booking-azubix/` (only `students-latest.json` and `students-previous.json` are kept).
+A macOS LaunchAgent (`~/Library/LaunchAgents/com.azubix.student-backup.plist`) runs it every day
+at 23:00 WIB, before the midnight cleanup. If the Mac is asleep, it runs on wake. Log: `backup.log`
+in the same folder. If the private package count ever drops, the good copies are kept and the new
+one is saved as `students-ALERT-<date>.json`.
