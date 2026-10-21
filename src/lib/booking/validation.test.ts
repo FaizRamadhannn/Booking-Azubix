@@ -47,7 +47,11 @@ describe("parseCreateBookingInput", () => {
   });
 
   test("accepts private and regular, rejects any other booking type", () => {
-    assert.equal(parseCreateBookingInput({ ...VALID, bookingType: "PRIVATE" }).bookingType, "PRIVATE");
+    assert.equal(
+      parseCreateBookingInput({ ...VALID, bookingType: "PRIVATE", whatsappNumber: "081234567890" })
+        .bookingType,
+      "PRIVATE",
+    );
     expectRejection({ ...VALID, bookingType: "GROUP" }, "bookingType");
     expectRejection({ ...VALID, bookingType: undefined }, "bookingType");
   });

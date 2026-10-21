@@ -3,13 +3,14 @@ import type { Metadata } from "next";
 import { signOutAdmin } from "@/app/admin/actions";
 import { AdminSignIn } from "@/components/admin/admin-sign-in";
 import { BookingsDashboard } from "@/components/admin/bookings-dashboard";
+import { PrivatePackagesTable } from "@/components/admin/private-packages-table";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { Button } from "@/components/ui/button";
 import { getAdmin } from "@/lib/auth/admin";
 import { TIMEZONE_LABEL } from "@/lib/booking/constants";
 import { todayInZone } from "@/lib/booking/datetime";
-import { getCalendar, listBookings } from "@/lib/booking/service";
+import { getCalendar, listBookings, listPackages } from "@/lib/booking/service";
 import { format } from "@/lib/i18n/get-dictionary";
 import { I18nProvider } from "@/lib/i18n/i18n-context";
 import { getLocaleAndDictionary } from "@/lib/i18n/server";
@@ -41,7 +42,11 @@ export default async function AdminBookingsPage() {
     );
   }
 
-  const [bookings, calendar] = await Promise.all([listBookings(), getCalendar()]);
+  const [bookings, calendar, packages] = await Promise.all([
+    listBookings(),
+    getCalendar(),
+    listPackages(),
+  ]);
 
   return (
     <>
@@ -73,6 +78,10 @@ export default async function AdminBookingsPage() {
             dict={dict}
             locale={locale}
           />
+        </div>
+
+        <div className="mt-8">
+          <PrivatePackagesTable packages={packages} dict={dict} locale={locale} />
         </div>
       </main>
       <SiteFooter dict={dict} />

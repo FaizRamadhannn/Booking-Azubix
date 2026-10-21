@@ -1,4 +1,5 @@
 import {
+  PACKAGE_CODE_PREFIX,
   PAYMENT_CODE_ALPHABET,
   PAYMENT_CODE_LENGTH,
   PAYMENT_CODE_PREFIX,
@@ -10,11 +11,20 @@ export type RandomInt = (max: number) => number;
 
 /** Human-readable payment reference, e.g. `AZB-7F3K2Q`. No 0/O or 1/I/L to misread. */
 export function generatePaymentCode(randomInt: RandomInt): string {
+  return generateCode(PAYMENT_CODE_PREFIX, randomInt);
+}
+
+/** Private package code, e.g. `PKG-7F3K2Q`, from the same unambiguous alphabet. */
+export function generatePackageCode(randomInt: RandomInt): string {
+  return generateCode(PACKAGE_CODE_PREFIX, randomInt);
+}
+
+function generateCode(prefix: string, randomInt: RandomInt): string {
   let code = "";
   for (let i = 0; i < PAYMENT_CODE_LENGTH; i += 1) {
     code += PAYMENT_CODE_ALPHABET[randomInt(PAYMENT_CODE_ALPHABET.length)];
   }
-  return `${PAYMENT_CODE_PREFIX}-${code}`;
+  return `${prefix}-${code}`;
 }
 
 /** When an unpaid hold stops reserving its slot. */

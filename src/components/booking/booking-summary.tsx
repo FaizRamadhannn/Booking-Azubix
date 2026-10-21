@@ -3,10 +3,16 @@
 import { LevelBadge } from "@/components/booking/level-badge";
 import { privatePackageTotal, TIMEZONE_LABEL } from "@/lib/booking/constants";
 import { findTimeSlot, formatLongDate } from "@/lib/booking/datetime";
-import type { BookingType, ClassLevel, IsoDate, TimeSlotId } from "@/lib/booking/types";
+import type {
+  BookingPackageInfo,
+  BookingType,
+  ClassLevel,
+  IsoDate,
+  TimeSlotId,
+} from "@/lib/booking/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { intlTag } from "@/lib/i18n/locale";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, formatWhatsappNumber, whatsappUrl } from "@/lib/utils";
 
 export interface BookingSummaryData {
   bookingType?: BookingType;
@@ -20,6 +26,8 @@ export interface BookingSummaryData {
   paymentCode?: string | null;
   amountDue?: number;
   payerName?: string | null;
+  whatsappNumber?: string | null;
+  privatePackage?: BookingPackageInfo | null;
 }
 
 /** Definition list shared by the review step, the success panel and the admin modal. */
@@ -44,6 +52,23 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
         </span>
       ),
     },
+    ...(booking.whatsappNumber
+      ? [
+          {
+            label: labels.whatsappNumber,
+            value: (
+              <a
+                href={whatsappUrl(booking.whatsappNumber)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary tabular-nums underline-offset-4 hover:underline"
+              >
+                {formatWhatsappNumber(booking.whatsappNumber)}
+              </a>
+            ),
+          },
+        ]
+      : []),
     { label: labels.whatsappGroupName, value: booking.whatsappGroupName },
     { label: labels.lastMaterial, value: booking.lastMaterial },
   ];
@@ -55,6 +80,22 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
       label: labels.packageTotal,
       value: formatRupiah(privatePackageTotal(booking.level)),
     });
+  }
+  if (booking.privatePackage) {
+    rows.push(
+      {
+        label: labels.packageCode,
+        value: <span className="font-mono">{booking.privatePackage.packageCode}</span>,
+      },
+      {
+        label: labels.packageSessions,
+        value: (
+          <span className="tabular-nums">
+            {booking.privatePackage.sessionsUsed} / {booking.privatePackage.sessionsTotal}
+          </span>
+        ),
+      },
+    );
   }
   if (booking.paymentCode) {
     rows.push({

@@ -2,7 +2,12 @@ import "server-only";
 
 import { randomInt } from "node:crypto";
 
-import { amountDueNow, BOOKING_WINDOW_DAYS, TIME_SLOTS } from "./constants";
+import {
+  amountDueNow,
+  BOOKING_WINDOW_DAYS,
+  PRIVATE_PACKAGES,
+  TIME_SLOTS,
+} from "./constants";
 import {
   bookingWindowDates,
   formatShortDate,
@@ -13,30 +18,41 @@ import {
 } from "./datetime";
 import { BookingError } from "./errors";
 import {
+  advancePackageStatus,
+  bookWithPackage,
   cancelBookingById,
   confirmBookingPaymentById,
+  deletePackage,
   expireFinishedBookings,
   findBookingById,
   findBookings,
   findOccupyingBookingsBetween,
   findOccupyingBookingsByDate,
+  findPackageByCode,
+  findPackages,
   insertBooking,
+  insertPackage,
   markBookingPaidById,
+  releasePackageSession,
   rescheduleBookingById,
 } from "./repository";
-import { generatePaymentCode, paymentDeadline } from "./payment";
+import { generatePackageCode, generatePaymentCode, paymentDeadline } from "./payment";
 import type {
   Booking,
   BookingFilters,
   CalendarDay,
+  CreateBookingInput,
   DayAvailability,
   IsoDate,
+  PackageLookup,
+  PrivatePackage,
   SlotAvailability,
   TimeSlotId,
 } from "./types";
 import {
   assertBookableDate,
   markPaidSchema,
+  packageLookupSchema,
   parseBookingAction,
   parseCreateBookingInput,
   toFieldErrors,
@@ -198,18 +214,128 @@ export async function createBooking(
   );
   if (taken) throw slotTakenError();
 
-  // The payment code is random; on the rare collision with an existing code,
-  // draw again. A slot collision is final.
-  for (let attempt = 0; attempt < PAYMENT_REFERENCE_ATTEMPTS; attempt += 1) {
-    const result = await insertBooking(payload, {
-      paymentCode: generatePaymentCode(randomInt),
-      amountDue: amountDueNow(payload.bookingType, payload.level),
-      paymentDeadline: paymentDeadline(now),
+  if (payload.packageCode && payload.whatsappNumber) {
+    return createPackageBooking({
+      ...payload,
+      packageCode: payload.packageCode,
+      whatsappNumber: payload.whatsappNumber,
     });
+  }
+
+  // A first private booking buys the whole package: create the package first,
+  // so the booking that pays for it can point at it.
+  let packageId: string | null = null;
+  if (payload.bookingType === "PRIVATE") {
+    packageId = (await createPackage(payload)).id;
+  }
+
+  try {
+    return await insertWithPaymentReference(payload, packageId, now);
+  } catch (error) {
+    if (packageId) await deletePackage(packageId);
+    throw error;
+  }
+}
+
+/** Inserts an UNPAID hold, redrawing the random payment code on a collision. */
+async function insertWithPaymentReference(
+  payload: CreateBookingInput,
+  packageId: string | null,
+  now: Date,
+): Promise<Booking> {
+  for (let attempt = 0; attempt < PAYMENT_REFERENCE_ATTEMPTS; attempt += 1) {
+    const result = await insertBooking(
+      payload,
+      {
+        paymentCode: generatePaymentCode(randomInt),
+        amountDue: amountDueNow(payload.bookingType, payload.level),
+        paymentDeadline: paymentDeadline(now),
+      },
+      packageId,
+    );
     if (result.ok) return result.booking;
     if (result.conflict === "slot") throw slotTakenError();
   }
   throw new Error("[bookings] could not allocate a unique payment reference");
+}
+
+async function createPackage(payload: CreateBookingInput): Promise<PrivatePackage> {
+  for (let attempt = 0; attempt < PAYMENT_REFERENCE_ATTEMPTS; attempt += 1) {
+    const created = await insertPackage({
+      packageCode: generatePackageCode(randomInt),
+      level: payload.level,
+      sessionsTotal: PRIVATE_PACKAGES[payload.level].sessions,
+      amountPaid: amountDueNow("PRIVATE", payload.level),
+      studentName: payload.studentName,
+      whatsappNumber: payload.whatsappNumber!,
+      whatsappGroupName: payload.whatsappGroupName,
+    });
+    if (created) return created;
+  }
+  throw new Error("[bookings] could not allocate a unique package code");
+}
+
+/** A session from an already paid package: no QRIS step, booked as paid. */
+async function createPackageBooking(
+  payload: CreateBookingInput & { packageCode: string; whatsappNumber: string },
+): Promise<Booking> {
+  const result = await bookWithPackage(payload);
+  if (!result.ok) {
+    if (result.reason === "slot") throw slotTakenError();
+    throw packageError(result.reason);
+  }
+  const booking = await findBookingById(result.bookingId);
+  if (!booking) throw new Error("[bookings] package booking vanished after insert");
+  return booking;
+}
+
+function packageError(
+  code: "PACKAGE_NOT_FOUND" | "PACKAGE_NOT_CONFIRMED" | "PACKAGE_USED_UP",
+): BookingError {
+  const messages = {
+    PACKAGE_NOT_FOUND: "No package matches that code and WhatsApp number.",
+    PACKAGE_NOT_CONFIRMED: "This package has not been confirmed by the admin yet.",
+    PACKAGE_USED_UP: "Every session in this package has been used.",
+  } as const;
+  return new BookingError(code, messages[code], { packageCode: messages[code] });
+}
+
+/**
+ * Public: a student checks their package before booking the next session.
+ * Both the code and the WhatsApp number must match, so a leaked code alone
+ * is not enough.
+ */
+export async function lookupPackage(input: unknown): Promise<PackageLookup> {
+  const parsed = packageLookupSchema.safeParse(input);
+  if (!parsed.success) {
+    throw new BookingError(
+      "VALIDATION_FAILED",
+      "Please correct the highlighted fields.",
+      toFieldErrors(parsed.error),
+    );
+  }
+  const pkg = await findPackageByCode(
+    parsed.data.packageCode as string,
+    parsed.data.whatsappNumber as string,
+  );
+  if (!pkg) throw packageError("PACKAGE_NOT_FOUND");
+  if (pkg.status !== "CONFIRMED") throw packageError("PACKAGE_NOT_CONFIRMED");
+  if (pkg.sessionsUsed >= pkg.sessionsTotal) throw packageError("PACKAGE_USED_UP");
+
+  return {
+    packageCode: pkg.packageCode,
+    level: pkg.level,
+    sessionsTotal: pkg.sessionsTotal,
+    sessionsUsed: pkg.sessionsUsed,
+    status: pkg.status,
+    studentName: pkg.studentName,
+    whatsappGroupName: pkg.whatsappGroupName,
+  };
+}
+
+/** Admin listing of every private package. */
+export async function listPackages(): Promise<PrivatePackage[]> {
+  return findPackages();
 }
 
 const PAYMENT_REFERENCE_ATTEMPTS = 8;
@@ -237,7 +363,11 @@ export async function markBookingPaid(
   await expireFinishedBookings(now);
 
   const paid = await markBookingPaidById(id, paymentCode, payerName, now);
-  if (paid) return paid;
+  if (paid) {
+    if (!paid.packageId) return paid;
+    await advancePackageStatus(paid.packageId, "PENDING");
+    return (await findBookingById(id)) ?? paid;
+  }
 
   const booking = await findBookingById(id);
   if (!booking || booking.paymentCode !== paymentCode) {
@@ -290,7 +420,11 @@ export async function cancelBooking(
   const cancelled = await cancelBookingById(id);
   if (!cancelled)
     throw new BookingError("NOT_FOUND", "That booking no longer exists.");
-  return cancelled;
+  if (!cancelled.packageId) return cancelled;
+
+  // Give the session back to the package (or void an unpaid one).
+  await releasePackageSession(cancelled.packageId);
+  return (await findBookingById(id)) ?? cancelled;
 }
 
 /**
@@ -358,7 +492,12 @@ export async function confirmBookingPayment(id: string): Promise<Booking> {
   }
 
   const confirmed = await confirmBookingPaymentById(id);
-  if (confirmed) return confirmed;
+  if (confirmed) {
+    if (!confirmed.packageId) return confirmed;
+    // Confirming the booking that bought a package activates the package code.
+    await advancePackageStatus(confirmed.packageId, "CONFIRMED");
+    return (await findBookingById(id)) ?? confirmed;
+  }
 
   const current = await requireBooking(id);
   if (current.paymentStatus === "CONFIRMED") {

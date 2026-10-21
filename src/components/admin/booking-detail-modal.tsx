@@ -1,13 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, BadgeCheck, CalendarClock, CircleX } from "lucide-react";
+import { AlertCircle, BadgeCheck, CalendarClock, CircleX, MessageCircle } from "lucide-react";
 
 import { RescheduleForm } from "@/components/admin/reschedule-form";
 import { BookingSummary } from "@/components/booking/booking-summary";
 import { PaymentStatusBadge } from "@/components/booking/payment-status-badge";
 import { StatusBadge } from "@/components/booking/status-badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -27,6 +27,7 @@ import type {
 import { format } from "@/lib/i18n/get-dictionary";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { intlTag } from "@/lib/i18n/locale";
+import { whatsappUrl } from "@/lib/utils";
 
 type View = "details" | "reschedule" | "confirm-cancel";
 
@@ -208,6 +209,17 @@ export function BookingDetailModal({
         {view === "details" && (
           <DialogFooter className="gap-2">
             <DialogClose render={<Button variant="outline">{dict.common.close}</Button>} />
+            {booking?.whatsappNumber && (
+              <a
+                href={whatsappUrl(booking.whatsappNumber)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonVariants({ variant: "secondary" })}
+              >
+                <MessageCircle aria-hidden="true" />
+                {t.chatWhatsapp}
+              </a>
+            )}
             {canConfirmPayment && booking && (
               <Button
                 type="button"

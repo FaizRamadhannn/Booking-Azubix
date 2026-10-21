@@ -35,6 +35,11 @@ npm run dev
      before today. If the SQL
      editor reports that `pg_cron` is unavailable, enable the `pg_cron`
      extension in Supabase Database → Extensions and run it again.
+   - Then run `20261021000000_create_private_packages.sql`. It adds private
+     packages: the first private booking buys the package and gives the
+     student a `PKG-XXXXXX` code; once the admin confirms that payment, the
+     student books every later session with the code plus their WhatsApp
+     number, without paying again.
 2. **Turn off public sign-ups** — Authentication → Sign In / Up → _Allow new
    users to sign up_ = **off**. Otherwise anyone could create an account.
 3. **Create your admin** — Authentication → Users → Add user (with a password).
