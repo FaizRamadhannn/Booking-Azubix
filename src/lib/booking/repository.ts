@@ -4,16 +4,26 @@ import { supabaseService } from "@/lib/supabase/service";
 
 import { pricePerSession, TIME_SLOTS } from "./constants";
 import { minutesOfDayInZone, todayInZone } from "./datetime";
-import type { Booking, BookingFilters, CreateBookingInput, IsoDate } from "./types";
+import type {
+  Booking,
+  BookingFilters,
+  CreateBookingInput,
+  IsoDate,
+  PrivatePackage,
+} from "./types";
 
 /** Postgres error code for a unique-constraint violation. */
 const UNIQUE_VIOLATION = "23505";
 
 const TABLE = "bookings";
+const PACKAGES = "private_packages";
 
 /** Columns selected everywhere, so every read produces a complete Booking. */
 const COLUMNS =
-  "id, booking_type, level, date, slot, status, price, payment_status, payment_code, amount_due, payment_deadline, payer_name, student_name, whatsapp_group, last_material, created_at, updated_at";
+  "id, booking_type, level, date, slot, status, price, payment_status, payment_code, amount_due, payment_deadline, payer_name, student_name, whatsapp_group, whatsapp_number, last_material, package_id, created_at, updated_at, package:private_packages(package_code, sessions_total, sessions_used, status)";
+
+const PACKAGE_COLUMNS =
+  "id, package_code, level, sessions_total, sessions_used, status, student_name, whatsapp_number, whatsapp_group, amount_paid, created_at, updated_at";
 
 /** The database uses snake_case; the domain model uses camelCase. */
 type BookingRow = {
@@ -31,10 +41,50 @@ type BookingRow = {
   payer_name: string | null;
   student_name: string;
   whatsapp_group: string;
+  whatsapp_number: string | null;
   last_material: string;
+  package_id: string | null;
+  created_at: string;
+  updated_at: string;
+  package: {
+    package_code: string;
+    sessions_total: number;
+    sessions_used: number;
+    status: string;
+  } | null;
+};
+
+type PackageRow = {
+  id: string;
+  package_code: string;
+  level: string;
+  sessions_total: number;
+  sessions_used: number;
+  status: string;
+  student_name: string;
+  whatsapp_number: string;
+  whatsapp_group: string;
+  amount_paid: number;
   created_at: string;
   updated_at: string;
 };
+
+function toPackage(row: PackageRow): PrivatePackage {
+  return {
+    id: row.id,
+    packageCode: row.package_code,
+    level: row.level as PrivatePackage["level"],
+    sessionsTotal: row.sessions_total,
+    sessionsUsed: row.sessions_used,
+    status: row.status as PrivatePackage["status"],
+    studentName: row.student_name,
+    whatsappNumber: row.whatsapp_number,
+    whatsappGroupName: row.whatsapp_group,
+    amountPaid: row.amount_paid,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
 
 function toBooking(row: BookingRow): Booking {
   return {
@@ -53,6 +103,16 @@ function toBooking(row: BookingRow): Booking {
     amountDue: row.amount_due,
     paymentDeadline: row.payment_deadline,
     payerName: row.payer_name,
+    whatsappNumber: row.whatsapp_number,
+    packageId: row.package_id,
+    privatePackage: row.package
+      ? {
+          packageCode: row.package.package_code,
+          sessionsTotal: row.package.sessions_total,
+          sessionsUsed: row.package.sessions_used,
+          status: row.package.status as PrivatePackage["status"],
+        }
+      : null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -91,18 +151,24 @@ function slotsEndedToday(now: Date): string[] {
  * releases the slot for other students.
  */
 async function releaseUnpaidBookings(now: Date): Promise<void> {
-  const { error } = await supabaseService()
+  const { data, error } = await supabaseService()
     .from(TABLE)
     .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
     .eq("status", "BOOKED")
     .eq("payment_status", "UNPAID")
-    .lt("payment_deadline", now.toISOString());
+    .lt("payment_deadline", now.toISOString())
+    .select("package_id");
   assertNoError(error, "releasing unpaid bookings");
+
+  // A private package bought by an unpaid booking is void as well.
+  for (const row of (data ?? []) as Array<{ package_id: string | null }>) {
+    if (row.package_id) await releasePackageSession(row.package_id);
+  }
 }
 
 /**
- * Moves every booking whose class has already finished to `EXPIRED`, and
- * releases unpaid holds that ran out of time.
+ * Deletes expired classes from previous days, moves today's finished
+ * classes to `EXPIRED`, and releases unpaid holds that ran out of time.
  * Called before each read/write so the stored status is always truthful.
  */
 export async function expireFinishedBookings(now: Date = new Date()): Promise<void> {
@@ -111,13 +177,15 @@ export async function expireFinishedBookings(now: Date = new Date()): Promise<vo
   const today = todayInZone(now);
   const timestamp = new Date().toISOString();
 
-  // Everything strictly before today.
+  // Expired classes from before today are deleted, mirroring the midnight
+  // database cleanup in case the scheduled job has not run yet. BOOKED and
+  // CANCELLED rows are never deleted.
   const { error: pastError } = await db
     .from(TABLE)
-    .update({ status: "EXPIRED", updated_at: timestamp })
-    .eq("status", "BOOKED")
+    .delete()
+    .eq("status", "EXPIRED")
     .lt("date", today);
-  assertNoError(pastError, "expiring past bookings");
+  assertNoError(pastError, "deleting past expired bookings");
 
   // Plus today's classes that have already ended.
   const ended = slotsEndedToday(now);
@@ -150,6 +218,7 @@ export type InsertResult =
 export async function insertBooking(
   input: CreateBookingInput,
   payment: PaymentReference,
+  packageId: string | null = null,
 ): Promise<InsertResult> {
   const db = supabaseService();
   const timestamp = new Date().toISOString();
@@ -169,7 +238,9 @@ export async function insertBooking(
       payment_deadline: payment.paymentDeadline.toISOString(),
       student_name: input.studentName,
       whatsapp_group: input.whatsappGroupName,
+      whatsapp_number: input.whatsappNumber ?? null,
       last_material: input.lastMaterial,
+      package_id: packageId,
       created_at: timestamp,
       updated_at: timestamp,
     })
@@ -287,6 +358,7 @@ export async function cancelBookingById(id: string): Promise<Booking | null> {
     .from(TABLE)
     .update({ status: "CANCELLED", updated_at: new Date().toISOString() })
     .eq("id", id)
+    .neq("status", "CANCELLED")
     .select(COLUMNS)
     .maybeSingle();
 
@@ -338,4 +410,135 @@ export async function findBookings(filters: BookingFilters = {}): Promise<Bookin
 
   assertNoError(error, "listing bookings");
   return (data as unknown as BookingRow[]).map(toBooking);
+}
+
+// ---------------------------------------------------------------------------
+// Private packages
+// ---------------------------------------------------------------------------
+
+export interface NewPackage {
+  packageCode: string;
+  level: CreateBookingInput["level"];
+  sessionsTotal: number;
+  amountPaid: number;
+  studentName: string;
+  whatsappNumber: string;
+  whatsappGroupName: string;
+}
+
+/**
+ * Creates an `UNPAID` package that already counts the booking paying for it
+ * as its first session. Returns `null` when the code collided and should be
+ * redrawn.
+ */
+export async function insertPackage(input: NewPackage): Promise<PrivatePackage | null> {
+  const timestamp = new Date().toISOString();
+  const { data, error } = await supabaseService()
+    .from(PACKAGES)
+    .insert({
+      package_code: input.packageCode,
+      level: input.level,
+      sessions_total: input.sessionsTotal,
+      sessions_used: 1,
+      status: "UNPAID",
+      student_name: input.studentName,
+      whatsapp_number: input.whatsappNumber,
+      whatsapp_group: input.whatsappGroupName,
+      amount_paid: input.amountPaid,
+      created_at: timestamp,
+      updated_at: timestamp,
+    })
+    .select(PACKAGE_COLUMNS)
+    .single();
+
+  if (isUniqueViolation(error)) return null;
+  assertNoError(error, "creating private package");
+  return toPackage(data as unknown as PackageRow);
+}
+
+/** Removes a package whose first booking could not be created. */
+export async function deletePackage(id: string): Promise<void> {
+  const { error } = await supabaseService().from(PACKAGES).delete().eq("id", id);
+  assertNoError(error, "deleting private package");
+}
+
+/** Follows the paying booking: `UNPAID` -> `PENDING` -> `CONFIRMED`. */
+export async function advancePackageStatus(
+  id: string,
+  next: "PENDING" | "CONFIRMED",
+): Promise<void> {
+  const from = next === "PENDING" ? ["UNPAID"] : ["UNPAID", "PENDING"];
+  const { error } = await supabaseService()
+    .from(PACKAGES)
+    .update({ status: next, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .in("status", from);
+  assertNoError(error, "updating private package status");
+}
+
+/** Gives a cancelled session back, or voids a package that was never paid. */
+export async function releasePackageSession(id: string): Promise<void> {
+  const { error } = await supabaseService().rpc("release_private_package_session", {
+    p_package_id: id,
+  });
+  assertNoError(error, "releasing a private package session");
+}
+
+export type PackageBookingResult =
+  | { ok: true; bookingId: string }
+  | {
+      ok: false;
+      reason: "slot" | "PACKAGE_NOT_FOUND" | "PACKAGE_NOT_CONFIRMED" | "PACKAGE_USED_UP";
+    };
+
+const PACKAGE_ERRORS = ["PACKAGE_NOT_FOUND", "PACKAGE_NOT_CONFIRMED", "PACKAGE_USED_UP"] as const;
+
+/**
+ * Books one session from a confirmed package. The database function checks the
+ * package, inserts the paid booking and counts the session in one transaction.
+ */
+export async function bookWithPackage(
+  input: CreateBookingInput & { packageCode: string; whatsappNumber: string },
+): Promise<PackageBookingResult> {
+  const { data, error } = await supabaseService().rpc("book_with_private_package", {
+    p_package_code: input.packageCode,
+    p_whatsapp_number: input.whatsappNumber,
+    p_date: input.date,
+    p_slot: input.timeSlot,
+    p_student_name: input.studentName,
+    p_whatsapp_group: input.whatsappGroupName,
+    p_last_material: input.lastMaterial,
+    p_level: input.level,
+    p_price: pricePerSession("PRIVATE", input.level),
+  });
+
+  if (isUniqueViolation(error)) return { ok: false, reason: "slot" };
+  const known = PACKAGE_ERRORS.find((code) => error?.message?.includes(code));
+  if (known) return { ok: false, reason: known };
+  assertNoError(error, "booking with a private package");
+  return { ok: true, bookingId: data as string };
+}
+
+export async function findPackageByCode(
+  packageCode: string,
+  whatsappNumber: string,
+): Promise<PrivatePackage | null> {
+  const { data, error } = await supabaseService()
+    .from(PACKAGES)
+    .select(PACKAGE_COLUMNS)
+    .eq("package_code", packageCode)
+    .eq("whatsapp_number", whatsappNumber)
+    .maybeSingle();
+  assertNoError(error, "loading a private package");
+  return data ? toPackage(data as unknown as PackageRow) : null;
+}
+
+/** Admin listing, newest first. */
+export async function findPackages(): Promise<PrivatePackage[]> {
+  const { data, error } = await supabaseService()
+    .from(PACKAGES)
+    .select(PACKAGE_COLUMNS)
+    .order("created_at", { ascending: false });
+  assertNoError(error, "listing private packages");
+  return (data as unknown as PackageRow[]).map(toPackage);
 }

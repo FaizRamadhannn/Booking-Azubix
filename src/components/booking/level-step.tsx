@@ -2,9 +2,10 @@
 
 import { ChevronRight } from "lucide-react";
 
+import { PackageCodeForm } from "@/components/booking/package-code-form";
 import { PrivatePlans } from "@/components/booking/private-plans";
 import { CLASS_LEVELS, pricePerSession } from "@/lib/booking/constants";
-import type { BookingType, ClassLevel } from "@/lib/booking/types";
+import type { BookingType, ClassLevel, PackageLookup } from "@/lib/booking/types";
 import { format } from "@/lib/i18n/get-dictionary";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { cn, formatRupiah } from "@/lib/utils";
@@ -13,15 +14,23 @@ export function LevelStep({
   bookingType,
   value,
   onSelect,
+  onPackageApplied,
 }: {
   bookingType: BookingType;
   value: ClassLevel | null;
   onSelect: (level: ClassLevel) => void;
+  /** Private only: the student already owns a paid package. */
+  onPackageApplied: (pkg: PackageLookup, whatsappNumber: string) => void;
 }) {
   const { dict } = useI18n();
 
   if (bookingType === "PRIVATE") {
-    return <PrivatePlans value={value} onSelect={onSelect} />;
+    return (
+      <>
+        <PackageCodeForm onApplied={onPackageApplied} />
+        <PrivatePlans value={value} onSelect={onSelect} />
+      </>
+    );
   }
 
   return (

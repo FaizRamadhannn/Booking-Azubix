@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertCircle, ArrowLeft, ArrowRight } from "lucide-react";
+import { AlertCircle, ArrowLeft, ArrowRight, KeyRound } from "lucide-react";
 
 import { DateStep } from "@/components/booking/date-step";
 import {
@@ -11,13 +11,14 @@ import {
 import { LevelStep } from "@/components/booking/level-step";
 import { PaymentStep } from "@/components/booking/payment-step";
 import { onPrivatePackageRequest } from "@/components/booking/private-package-request";
+import { savePackage } from "@/components/booking/saved-package";
 import { SuccessPanel } from "@/components/booking/success-panel";
 import { BOOKING_STEPS, Stepper, type BookingStepId } from "@/components/booking/stepper";
 import { TimeStep, type LoadState } from "@/components/booking/time-step";
 import { TypeStep } from "@/components/booking/type-step";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { BookingErrorBody } from "@/lib/booking/errors";
+import type { BookingErrorBody, BookingErrorCode } from "@/lib/booking/errors";
 import type {
   Booking,
   BookingType,
@@ -25,6 +26,7 @@ import type {
   ClassLevel,
   DayAvailability,
   IsoDate,
+  PackageLookup,
   TimeSlotId,
 } from "@/lib/booking/types";
 import { PAYMENT_HOLD_MINUTES } from "@/lib/booking/constants";
@@ -39,7 +41,17 @@ const EMPTY_DETAILS: StudentDetails = {
   studentName: "",
   whatsappGroupName: "",
   lastMaterial: "",
+  whatsappNumber: "",
 };
+
+/** A paid package the student is booking this session from. */
+type ActivePackage = PackageLookup & { whatsappNumber: string };
+
+const PACKAGE_ERROR_CODES: BookingErrorCode[] = [
+  "PACKAGE_NOT_FOUND",
+  "PACKAGE_NOT_CONFIRMED",
+  "PACKAGE_USED_UP",
+];
 
 type Step = BookingStepId | "success";
 
@@ -68,6 +80,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   const [date, setDate] = React.useState<IsoDate | null>(null);
   const [timeSlot, setTimeSlot] = React.useState<TimeSlotId | null>(null);
   const [details, setDetails] = React.useState<StudentDetails>(EMPTY_DETAILS);
+  const [activePackage, setActivePackage] = React.useState<ActivePackage | null>(null);
 
   const [availability, setAvailability] =
     React.useState<DayAvailability | null>(null);
@@ -87,12 +100,21 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   const hasMounted = React.useRef(false);
   /** Set when a step change came from outside the card and should bring it into view. */
   const scrollIntoViewOnStep = React.useRef(false);
+  /** Set when the student asked to enter a package code: focus that field instead. */
+  const focusPackageCodeOnStep = React.useRef(false);
 
   // Move focus to the step heading on every transition so keyboard and screen
   // reader users are not stranded at the top of the page.
   React.useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;
+      return;
+    }
+    if (focusPackageCodeOnStep.current) {
+      focusPackageCodeOnStep.current = false;
+      const field = document.getElementById("packageCode");
+      field?.focus({ preventScroll: true });
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (scrollIntoViewOnStep.current) {
@@ -139,6 +161,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
           cardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
         }
         setBookingType("PRIVATE");
+        setActivePackage(null);
         setLevel(next);
         setDate(null);
         setTimeSlot(null);
@@ -162,14 +185,62 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
 
   function selectBookingType(next: BookingType) {
     setBookingType(next);
+    if (next !== "PRIVATE") setActivePackage(null);
     setFormError(null);
     setStep("level");
   }
 
   function selectLevel(next: ClassLevel) {
+    // Picking a package card means buying a new one.
+    setActivePackage(null);
     setLevel(next);
     setFormError(null);
     setStep("date");
+  }
+
+  /** The student owns a paid package: book from it, the level is the package's. */
+  function applyPackage(pkg: PackageLookup, whatsappNumber: string) {
+    setActivePackage({ ...pkg, whatsappNumber });
+    setBookingType("PRIVATE");
+    setLevel(pkg.level);
+    setDetails((current) => ({
+      ...current,
+      studentName: current.studentName || pkg.studentName,
+      whatsappGroupName: current.whatsappGroupName || pkg.whatsappGroupName,
+      whatsappNumber,
+    }));
+    setFormError(null);
+    setStep("date");
+  }
+
+  /**
+   * A private student who arrived without using their code (e.g. from the
+   * landing page's pricing cards) goes back to the package code form.
+   */
+  function goToPackageCode() {
+    setFormError(null);
+    focusPackageCodeOnStep.current = true;
+    setStep("level");
+  }
+
+  function dropPackage() {
+    setActivePackage(null);
+    setLevel(null);
+    setFormError(null);
+    setStep("level");
+  }
+
+  /** Everything the server needs for this booking. */
+  function bookingPayload() {
+    return {
+      ...details,
+      whatsappNumber: bookingType === "PRIVATE" ? details.whatsappNumber : "",
+      packageCode: activePackage?.packageCode ?? "",
+      bookingType,
+      level,
+      date,
+      timeSlot,
+    };
   }
 
   function selectDate(next: IsoDate) {
@@ -199,13 +270,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
 
   /** Runs the shared schema on the client so mistakes surface before any request. */
   function submitDetails() {
-    const result = createBookingSchema.safeParse({
-      ...details,
-      bookingType,
-      level,
-      date,
-      timeSlot,
-    });
+    const result = createBookingSchema.safeParse(bookingPayload());
     if (!result.success) {
       const fields = result.error.issues.map((issue) => String(issue.path[0] ?? "form"));
       setFieldErrors(localizeFieldErrors(dict, fields));
@@ -221,7 +286,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
    */
   async function createBooking() {
     if (submitLock.current || !bookingType || !level || !date || !timeSlot) return;
-    const result = createBookingSchema.safeParse({ ...details, bookingType, level, date, timeSlot });
+    const result = createBookingSchema.safeParse(bookingPayload());
     if (!result.success) {
       const fields = result.error.issues.map((issue) => String(issue.path[0] ?? "form"));
       setFieldErrors(localizeFieldErrors(dict, fields));
@@ -238,17 +303,34 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...details, bookingType, level, date, timeSlot }),
+        body: JSON.stringify(bookingPayload()),
       });
 
       if (response.ok) {
-        setBooking((await response.json()) as Booking);
-        setStep("payment");
+        const created = (await response.json()) as Booking;
+        setBooking(created);
+        // A session from a paid package is booked as paid: nothing to pay.
+        if (activePackage && created.paymentStatus === "CONFIRMED") {
+          savePackage({
+            packageCode: activePackage.packageCode,
+            whatsappNumber: activePackage.whatsappNumber,
+          });
+          setStep("success");
+        } else {
+          setStep("payment");
+        }
         void refreshCalendar();
         return;
       }
 
       const error = (await response.json()) as BookingErrorBody;
+      if (PACKAGE_ERROR_CODES.includes(error.code)) {
+        setFormError(dict.errors[error.code]);
+        setActivePackage(null);
+        setLevel(null);
+        setStep("level");
+        return;
+      }
       setFieldErrors(localizeFieldErrors(dict, Object.keys(error.fieldErrors ?? {})));
       setFormError(
         error.code === "SLOT_TAKEN" || error.code === "SLOT_EXPIRED"
@@ -309,7 +391,14 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       });
 
       if (response.ok) {
-        setBooking((await response.json()) as Booking);
+        const paid = (await response.json()) as Booking;
+        setBooking(paid);
+        if (paid.privatePackage && paid.whatsappNumber) {
+          savePackage({
+            packageCode: paid.privatePackage.packageCode,
+            whatsappNumber: paid.whatsappNumber,
+          });
+        }
         setStep("success");
         return;
       }
@@ -337,6 +426,7 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
     setDate(null);
     setTimeSlot(null);
     setDetails(EMPTY_DETAILS);
+    setActivePackage(null);
     setAvailability(null);
     setAvailabilityState("ready");
     setFieldErrors({});
@@ -366,6 +456,57 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
               })}
         </h3>
 
+        {activePackage && step !== "success" && step !== "type" && step !== "level" && (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm">
+            <p className="flex items-start gap-2">
+              <KeyRound aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+              <span>
+                <span className="font-medium">
+                  {format(dict.booking.package.active, {
+                    code: activePackage.packageCode,
+                    level: activePackage.level,
+                    remaining: activePackage.sessionsTotal - activePackage.sessionsUsed,
+                    total: activePackage.sessionsTotal,
+                  })}
+                </span>{" "}
+                <span className="text-muted-foreground">{dict.booking.package.activeHint}</span>
+              </span>
+            </p>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={dropPackage}
+              disabled={submitting}
+            >
+              {dict.booking.package.remove}
+            </Button>
+          </div>
+        )}
+
+        {bookingType === "PRIVATE" &&
+          !activePackage &&
+          (step === "date" || step === "time" || step === "details") && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 p-3 text-sm">
+              <p className="flex items-start gap-2">
+                <KeyRound aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span>
+                  <span className="font-medium">{dict.booking.package.heading}</span>{" "}
+                  <span className="text-muted-foreground">{dict.booking.package.reminder}</span>
+                </span>
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={goToPackageCode}
+                disabled={submitting}
+              >
+                {dict.booking.package.enterCode}
+              </Button>
+            </div>
+          )}
+
         {formError && step !== "success" && (
           <p
             role="alert"
@@ -381,7 +522,12 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
         )}
 
         {step === "level" && bookingType && (
-          <LevelStep bookingType={bookingType} value={level} onSelect={selectLevel} />
+          <LevelStep
+            bookingType={bookingType}
+            value={level}
+            onSelect={selectLevel}
+            onPackageApplied={applyPackage}
+          />
         )}
 
         {step === "date" && (
@@ -403,6 +549,8 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
           <DetailsStep
             value={details}
             errors={fieldErrors}
+            askWhatsappNumber={bookingType === "PRIVATE"}
+            lockWhatsappNumber={activePackage !== null}
             onChange={(patch) => {
               setDetails((current) => ({ ...current, ...patch }));
               setFieldErrors((current) => {
@@ -449,7 +597,13 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
                 disabled={submitting}
                 className="h-11 rounded-full px-6 font-semibold hover:bg-primary/90 hover:shadow-[0_0_20px_rgb(255_107_0/40%)]"
               >
-                {submitting ? dict.booking.payment.creating : dict.booking.buttons.reviewBooking}
+                {activePackage
+                  ? submitting
+                    ? dict.booking.package.booking
+                    : dict.booking.package.bookButton
+                  : submitting
+                    ? dict.booking.payment.creating
+                    : dict.booking.buttons.reviewBooking}
                 <ArrowRight aria-hidden="true" />
               </Button>
             )}

@@ -12,6 +12,8 @@ export interface StudentDetails {
   studentName: string;
   whatsappGroupName: string;
   lastMaterial: string;
+  /** Asked for private classes only, so the tutor can chat the student. */
+  whatsappNumber: string;
 }
 
 function FieldError({ id, message }: { id: string; message?: string }) {
@@ -28,10 +30,16 @@ export function DetailsStep({
   value,
   errors,
   onChange,
+  askWhatsappNumber = false,
+  lockWhatsappNumber = false,
 }: {
   value: StudentDetails;
   errors: Record<string, string>;
   onChange: (patch: Partial<StudentDetails>) => void;
+  /** Private classes need the student's own number. */
+  askWhatsappNumber?: boolean;
+  /** Booking from a package: the number is the one the package was bought with. */
+  lockWhatsappNumber?: boolean;
 }) {
   const { dict } = useI18n();
   const t = dict.booking.details;
@@ -58,6 +66,35 @@ export function DetailsStep({
         />
         <FieldError id="studentName-error" message={errors.studentName} />
       </div>
+
+      {askWhatsappNumber && (
+        <div className="space-y-1.5">
+          <Label htmlFor="whatsappNumber">{t.whatsappNumberLabel}</Label>
+          <Input
+            id="whatsappNumber"
+            name="whatsappNumber"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            required
+            readOnly={lockWhatsappNumber}
+            maxLength={32}
+            placeholder="0812 3456 7890"
+            value={value.whatsappNumber}
+            aria-invalid={Boolean(errors.whatsappNumber)}
+            aria-describedby={
+              errors.whatsappNumber ? "whatsappNumber-error" : "whatsappNumber-hint"
+            }
+            onChange={(event) => onChange({ whatsappNumber: event.target.value })}
+          />
+          {!errors.whatsappNumber && (
+            <p id="whatsappNumber-hint" className="text-xs text-muted-foreground">
+              {t.whatsappNumberHint}
+            </p>
+          )}
+          <FieldError id="whatsappNumber-error" message={errors.whatsappNumber} />
+        </div>
+      )}
 
       <div className="space-y-1.5">
         <Label htmlFor="whatsappGroupName">{t.whatsappGroupLabel}</Label>

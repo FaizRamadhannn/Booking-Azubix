@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { AlertCircle, CalendarSearch, RefreshCw } from "lucide-react";
 
 import {
@@ -89,6 +90,7 @@ function BookingsDashboardInner({
   const [selected, setSelected] = React.useState<Booking | null>(null);
   const [calendar, setCalendar] =
     React.useState<CalendarDay[]>(initialCalendar);
+  const router = useRouter();
 
   const load = React.useCallback(
     async (activeFilters: BookingFilters) => {
@@ -157,12 +159,15 @@ function BookingsDashboardInner({
 
         await load(filters);
         await refreshCalendar();
+        // Confirming or cancelling can change a private package; re-render the
+        // server-side package list too.
+        router.refresh();
         return { ok: true };
       } catch {
         return { ok: false, message: dict.booking.networkError };
       }
     },
-    [filters, load, refreshCalendar, dict],
+    [filters, load, refreshCalendar, dict, router],
   );
 
   const summary = summarise(bookings, today);

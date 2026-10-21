@@ -26,6 +26,19 @@ export const PAYMENT_CODE_LENGTH = 6;
 export const PAYMENT_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 
 /**
+ * Private package codes look like `PKG-7F3K2Q`. Students type the code (plus
+ * their WhatsApp number) to book the remaining sessions without paying again.
+ */
+export const PACKAGE_CODE_PREFIX = "PKG";
+
+/**
+ * `UNPAID`/`PENDING`/`CONFIRMED` follow the payment of the booking that bought
+ * the package; only a `CONFIRMED` package can be used. `CANCELLED` when that
+ * booking was never paid or was cancelled before payment.
+ */
+export const PACKAGE_STATUSES = ["UNPAID", "PENDING", "CONFIRMED", "CANCELLED"] as const;
+
+/**
  * Class types a student picks first. Both pay through the QRIS step: regular
  * per session, private as the full package up front.
  */
@@ -148,4 +161,6 @@ export const FIELD_LIMITS = {
   whatsappGroupName: { min: 2, max: 80 },
   lastMaterial: { min: 2, max: 200 },
   payerName: { min: 2, max: 80 },
+  /** Digits after normalising to the international format, e.g. 6281234567890. */
+  whatsappNumber: { min: 9, max: 15 },
 } as const;

@@ -19,7 +19,7 @@ import {
 import { secondsLeft } from "@/lib/booking/payment";
 import { findTimeSlot, formatLongDate } from "@/lib/booking/datetime";
 import { format } from "@/lib/i18n/get-dictionary";
-import { formatRupiah } from "@/lib/utils";
+import { formatRupiah, formatWhatsappNumber } from "@/lib/utils";
 import type { Booking } from "@/lib/booking/types";
 import { useI18n } from "@/lib/i18n/i18n-context";
 import { intlTag } from "@/lib/i18n/locale";
@@ -208,6 +208,14 @@ export function PaymentStep({
             {slot ? `${slot.start} – ${slot.end}` : timeSlot}
           </dd>
         </div>
+        {details.whatsappNumber && (
+          <div>
+            <dt className="text-muted-foreground">{t.whatsappNumber}</dt>
+            <dd className="mt-0.5 font-medium tabular-nums">
+              {formatWhatsappNumber(details.whatsappNumber)}
+            </dd>
+          </div>
+        )}
         <div>
           <dt className="text-muted-foreground">{t.whatsappGroup}</dt>
           <dd className="mt-0.5 break-words font-medium">{details.whatsappGroupName}</dd>

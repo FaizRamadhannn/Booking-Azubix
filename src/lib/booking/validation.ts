@@ -30,21 +30,95 @@ const trimmed = (field: keyof typeof FIELD_LIMITS, label: string) =>
     );
 
 /**
+ * Turns what a student types (`0812-3456-7890`, `+62 812 3456 7890`, …) into
+ * the digits-only international form wa.me expects (`6281234567890`). A local
+ * number starting with 0 is treated as Indonesian. Returns `null` when the
+ * result is not a plausible phone number.
+ */
+export function normalizeWhatsappNumber(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!/^\+?[\d\s().-]+$/.test(trimmed)) return null;
+  let digits = trimmed.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  else if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+  const { min, max } = FIELD_LIMITS.whatsappNumber;
+  if (digits.length < min || digits.length > max || digits.startsWith("0")) return null;
+  return digits;
+}
+
+/** Normalised WhatsApp number; blank becomes `undefined`. */
+const whatsappNumberField = z
+  .string()
+  .max(32, "Enter a valid WhatsApp number.")
+  .transform((value, ctx) => {
+    if (!value.trim()) return undefined;
+    const normalized = normalizeWhatsappNumber(value);
+    if (!normalized) {
+      ctx.addIssue({ code: "custom", message: "Enter a valid WhatsApp number." });
+      return z.NEVER;
+    }
+    return normalized;
+  });
+
+/** `PKG-XXXXXX`, case-insensitive; blank becomes `undefined`. */
+const packageCodeField = z
+  .string()
+  .max(32, "Enter a valid package code.")
+  .transform((value, ctx) => {
+    const code = value.trim().toUpperCase();
+    if (!code) return undefined;
+    if (!/^[A-Z]{3}-[A-Z0-9]{6}$/.test(code)) {
+      ctx.addIssue({ code: "custom", message: "Enter a valid package code." });
+      return z.NEVER;
+    }
+    return code;
+  });
+
+/**
  * Shape-level validation shared by the client form and the API route, so the
  * two can never drift apart. Calendar rules live in {@link assertBookableSlot}.
+ *
+ * Private bookings must carry a WhatsApp number, so the tutor can reach the
+ * student directly. A `packageCode` books a session from an already paid
+ * package instead of paying again.
  */
-export const createBookingSchema = z.object({
-  studentName: trimmed("studentName", "Student name"),
-  whatsappGroupName: trimmed("whatsappGroupName", "WhatsApp group name"),
-  lastMaterial: trimmed("lastMaterial", "Last material"),
-  bookingType: z.enum(BOOKING_TYPES, { error: "Choose private or regular." }),
-  level: z.enum(CLASS_LEVELS, { error: "Choose a class level." }),
-  date: z
-    .string({ error: "Choose a date." })
-    .refine(isValidIsoDate, "Choose a valid date."),
-  timeSlot: z.enum(TIME_SLOT_IDS as [string, ...string[]], {
-    error: "Choose one of the available time slots.",
-  }),
+export const createBookingSchema = z
+  .object({
+    studentName: trimmed("studentName", "Student name"),
+    whatsappGroupName: trimmed("whatsappGroupName", "WhatsApp group name"),
+    lastMaterial: trimmed("lastMaterial", "Last material"),
+    bookingType: z.enum(BOOKING_TYPES, { error: "Choose private or regular." }),
+    level: z.enum(CLASS_LEVELS, { error: "Choose a class level." }),
+    date: z
+      .string({ error: "Choose a date." })
+      .refine(isValidIsoDate, "Choose a valid date."),
+    timeSlot: z.enum(TIME_SLOT_IDS as [string, ...string[]], {
+      error: "Choose one of the available time slots.",
+    }),
+    whatsappNumber: whatsappNumberField.optional(),
+    packageCode: packageCodeField.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.bookingType === "PRIVATE" && !data.whatsappNumber) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["whatsappNumber"],
+        message: "Enter your WhatsApp number.",
+      });
+    }
+    if (data.packageCode && data.bookingType !== "PRIVATE") {
+      ctx.addIssue({
+        code: "custom",
+        path: ["packageCode"],
+        message: "Package codes are for private classes only.",
+      });
+    }
+  });
+
+/** A student checking their package before booking the next session. */
+export const packageLookupSchema = z.object({
+  packageCode: packageCodeField.refine(Boolean, "Enter your package code."),
+  whatsappNumber: whatsappNumberField.refine(Boolean, "Enter your WhatsApp number."),
 });
 
 export type CreateBookingPayload = z.infer<typeof createBookingSchema>;

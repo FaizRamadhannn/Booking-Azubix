@@ -3,6 +3,7 @@ import type {
   BOOKING_STATUSES,
   BOOKING_TYPES,
   CLASS_LEVELS,
+  PACKAGE_STATUSES,
   PAYMENT_STATUSES,
   TIME_SLOTS,
 } from "./constants";
@@ -26,6 +27,8 @@ export type BookingStatus = (typeof BOOKING_STATUSES)[number];
 export type BookingRecordStatus = (typeof BOOKING_RECORD_STATUSES)[number];
 
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export type PackageStatus = (typeof PACKAGE_STATUSES)[number];
 
 /** `"REGULAR" | "PRIVATE"` — only regular classes are paid by QRIS. */
 export type BookingType = (typeof BOOKING_TYPES)[number];
@@ -53,8 +56,40 @@ export interface Booking {
   paymentDeadline: string | null;
   /** Name the transfer was made under, entered when the student reports payment. */
   payerName: string | null;
+  /** Student's WhatsApp number (digits, with country code); required for private. */
+  whatsappNumber: string | null;
+  /** The private package this booking belongs to, if any. */
+  packageId: string | null;
+  privatePackage: BookingPackageInfo | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** What a booking shows about its private package. */
+export interface BookingPackageInfo {
+  packageCode: string;
+  sessionsTotal: number;
+  sessionsUsed: number;
+  status: PackageStatus;
+}
+
+/** A private package as the admin sees it. */
+export interface PrivatePackage extends BookingPackageInfo {
+  id: string;
+  level: ClassLevel;
+  studentName: string;
+  whatsappNumber: string;
+  whatsappGroupName: string;
+  amountPaid: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** What a student sees after entering their package code and WhatsApp number. */
+export interface PackageLookup extends BookingPackageInfo {
+  level: ClassLevel;
+  studentName: string;
+  whatsappGroupName: string;
 }
 
 /** Payload accepted by the booking service once it has been validated. */
@@ -66,6 +101,10 @@ export interface CreateBookingInput {
   level: ClassLevel;
   date: IsoDate;
   timeSlot: TimeSlotId;
+  /** Normalised digits, e.g. 6281234567890. Required for private bookings. */
+  whatsappNumber?: string;
+  /** Set when a private booking is paid from an existing package. */
+  packageCode?: string;
 }
 
 /** Payload for moving an existing booking to a different date and slot. */
