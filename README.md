@@ -29,8 +29,10 @@ npm run dev
    - Then `…020000_create_admin_users.sql` in both cases
    - Finally run `…030000_schedule_expired_booking_cleanup.sql` and, for a
      database that already ran the previous cleanup migration, also run
-     `…040000_reschedule_expired_booking_cleanup_daily.sql`. The final schedule
-     runs daily at 03:00 WIB. If the SQL
+     `…040000_reschedule_expired_booking_cleanup_daily.sql`, then
+     `20261020000000_cleanup_expired_bookings_at_midnight.sql`. The final
+     schedule runs daily at 00:00 WIB and deletes every EXPIRED class dated
+     before today. If the SQL
      editor reports that `pg_cron` is unavailable, enable the `pg_cron`
      extension in Supabase Database → Extensions and run it again.
 2. **Turn off public sign-ups** — Authentication → Sign In / Up → _Allow new
@@ -90,8 +92,8 @@ select status, start_time, end_time, return_message
  limit 5;
 ```
 
-The first query should return `0 20 * * *` and `active = true`. The second
-should show a successful run after the next 03:00 WIB window.
+The first query should return `0 17 * * *` and `active = true`. The second
+should show a successful run after the next 00:00 WIB window.
 
 ## Configuration
 

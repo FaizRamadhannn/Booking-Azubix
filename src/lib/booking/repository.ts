@@ -101,8 +101,8 @@ async function releaseUnpaidBookings(now: Date): Promise<void> {
 }
 
 /**
- * Moves every booking whose class has already finished to `EXPIRED`, and
- * releases unpaid holds that ran out of time.
+ * Deletes expired classes from previous days, moves today's finished
+ * classes to `EXPIRED`, and releases unpaid holds that ran out of time.
  * Called before each read/write so the stored status is always truthful.
  */
 export async function expireFinishedBookings(now: Date = new Date()): Promise<void> {
@@ -111,13 +111,15 @@ export async function expireFinishedBookings(now: Date = new Date()): Promise<vo
   const today = todayInZone(now);
   const timestamp = new Date().toISOString();
 
-  // Everything strictly before today.
+  // Expired classes from before today are deleted, mirroring the midnight
+  // database cleanup in case the scheduled job has not run yet. BOOKED and
+  // CANCELLED rows are never deleted.
   const { error: pastError } = await db
     .from(TABLE)
-    .update({ status: "EXPIRED", updated_at: timestamp })
-    .eq("status", "BOOKED")
+    .delete()
+    .eq("status", "EXPIRED")
     .lt("date", today);
-  assertNoError(pastError, "expiring past bookings");
+  assertNoError(pastError, "deleting past expired bookings");
 
   // Plus today's classes that have already ended.
   const ended = slotsEndedToday(now);
