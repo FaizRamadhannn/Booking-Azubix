@@ -322,6 +322,8 @@ export const de = {
       active: "Paket {code} · Level {level} · sisa {remaining} dari {total} sesi",
       activeHint: "Sesi ini tidak perlu dibayar lagi.",
       remove: "Jangan pakai paket",
+      reminder: "Pakai kode paket Anda supaya sesi ini tidak perlu dibayar lagi.",
+      enterCode: "Masukkan kode paket",
       buyNew: "Atau beli paket baru",
       bookButton: "Konfirmasi booking",
       booking: "Membooking...",

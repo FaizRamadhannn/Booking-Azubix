@@ -100,12 +100,21 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
   const hasMounted = React.useRef(false);
   /** Set when a step change came from outside the card and should bring it into view. */
   const scrollIntoViewOnStep = React.useRef(false);
+  /** Set when the student asked to enter a package code: focus that field instead. */
+  const focusPackageCodeOnStep = React.useRef(false);
 
   // Move focus to the step heading on every transition so keyboard and screen
   // reader users are not stranded at the top of the page.
   React.useEffect(() => {
     if (!hasMounted.current) {
       hasMounted.current = true;
+      return;
+    }
+    if (focusPackageCodeOnStep.current) {
+      focusPackageCodeOnStep.current = false;
+      const field = document.getElementById("packageCode");
+      field?.focus({ preventScroll: true });
+      field?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
     if (scrollIntoViewOnStep.current) {
@@ -202,6 +211,16 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
     }));
     setFormError(null);
     setStep("date");
+  }
+
+  /**
+   * A private student who arrived without using their code (e.g. from the
+   * landing page's pricing cards) goes back to the package code form.
+   */
+  function goToPackageCode() {
+    setFormError(null);
+    focusPackageCodeOnStep.current = true;
+    setStep("level");
   }
 
   function dropPackage() {
@@ -464,6 +483,29 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
             </Button>
           </div>
         )}
+
+        {bookingType === "PRIVATE" &&
+          !activePackage &&
+          (step === "date" || step === "time" || step === "details") && (
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-muted/40 p-3 text-sm">
+              <p className="flex items-start gap-2">
+                <KeyRound aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-primary" />
+                <span>
+                  <span className="font-medium">{dict.booking.package.heading}</span>{" "}
+                  <span className="text-muted-foreground">{dict.booking.package.reminder}</span>
+                </span>
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={goToPackageCode}
+                disabled={submitting}
+              >
+                {dict.booking.package.enterCode}
+              </Button>
+            </div>
+          )}
 
         {formError && step !== "success" && (
           <p
