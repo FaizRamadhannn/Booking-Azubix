@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { BookingError } from "@/lib/booking/errors";
 import { markBookingPaid } from "@/lib/booking/service";
+import { rateLimitedResponse, withinRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,8 @@ export async function POST(
   request: Request,
   context: { params: Promise<{ id: string }> },
 ) {
+  if (!(await withinRateLimit(request, "markPaid"))) return rateLimitedResponse();
+
   const { id } = await context.params;
   if (!z.uuid().safeParse(id).success) {
     return NextResponse.json(

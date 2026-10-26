@@ -161,7 +161,7 @@ export function RescheduleForm({
 
           {dayState === "ready" && day && !day.isOpen && (
             <p className="text-sm text-muted-foreground">
-              {getClosedReason(dict, locale, date)}
+              {getClosedReason(dict, locale, date, day.dayOff)}
             </p>
           )}
         </div>

@@ -12,6 +12,7 @@ import {
   bookingWindowDates,
   formatShortDate,
   isSlotPast,
+  isValidIsoDate,
   isWeekend,
   lastBookableDate,
   todayInZone,
@@ -21,19 +22,23 @@ import {
   advancePackageStatus,
   bookWithPackage,
   cancelBookingById,
+  closeDate,
   confirmBookingPaymentById,
   deletePackage,
   expireFinishedBookings,
   findBookingById,
   findBookings,
+  findClosedDates,
   findOccupyingBookingsBetween,
   findOccupyingBookingsByDate,
   findPackageByCode,
   findPackages,
   insertBooking,
   insertPackage,
+  isDateClosed,
   markBookingPaidById,
   releasePackageSession,
+  reopenDate,
   rescheduleBookingById,
 } from "./repository";
 import { generatePackageCode, generatePaymentCode, paymentDeadline } from "./payment";
@@ -41,6 +46,7 @@ import type {
   Booking,
   BookingFilters,
   CalendarDay,
+  ClosedDate,
   CreateBookingInput,
   DayAvailability,
   IsoDate,
@@ -51,6 +57,7 @@ import type {
 } from "./types";
 import {
   assertBookableDate,
+  closeDaySchema,
   markPaidSchema,
   packageLookupSchema,
   parseBookingAction,
@@ -104,14 +111,24 @@ function resolveSlots(
   });
 }
 
+const DAY_OFF_REASON = "There is no class on this day.";
+
 /** Why the whole day cannot be booked, or `null` when it is open. */
-function closedReasonFor(date: IsoDate, now: Date): string | null {
+function closedReasonFor(date: IsoDate, now: Date, dayOff: boolean): string | null {
   if (isWeekend(date)) return "Classes run Monday to Friday only.";
   if (date < todayInZone(now)) return "This date has already passed.";
   if (date > lastBookableDate(now)) {
     return `Bookings open ${BOOKING_WINDOW_DAYS} days ahead, up to ${formatShortDate(lastBookableDate(now))}.`;
   }
+  if (dayOff) return DAY_OFF_REASON;
   return null;
+}
+
+/** Friendly early rejection; the database trigger is the real guarantee. */
+async function assertDayOpen(date: IsoDate): Promise<void> {
+  if (await isDateClosed(date)) {
+    throw new BookingError("DATE_CLOSED", DAY_OFF_REASON, { date: DAY_OFF_REASON });
+  }
 }
 
 /** Slot-by-slot availability for one date. */
@@ -120,14 +137,16 @@ export async function getDayAvailability(
   now: Date = new Date(),
 ): Promise<DayAvailability> {
   await expireFinishedBookings(now);
-  const closedReason = closedReasonFor(date, now);
+  const dayOff = !isWeekend(date) && (await isDateClosed(date));
+  const closedReason = closedReasonFor(date, now, dayOff);
   if (closedReason) {
-    return { date, isOpen: false, closedReason, slots: [] };
+    return { date, isOpen: false, closedReason, dayOff, slots: [] };
   }
   return {
     date,
     isOpen: true,
     closedReason: null,
+    dayOff: false,
     slots: resolveSlots(date, await findOccupyingBookingsByDate(date), now),
   };
 }
@@ -139,10 +158,11 @@ export async function getCalendar(
   await expireFinishedBookings(now);
   const dates = bookingWindowDates(now);
   const today = todayInZone(now);
-  const bookings = await findOccupyingBookingsBetween(
-    dates[0],
-    dates[dates.length - 1],
-  );
+  const [bookings, closed] = await Promise.all([
+    findOccupyingBookingsBetween(dates[0], dates[dates.length - 1]),
+    findClosedDates(dates[0], dates[dates.length - 1]),
+  ]);
+  const closedDates = new Set(closed.map((day) => day.date));
 
   const bookedByDate = new Map<IsoDate, Set<string>>();
   for (const booking of bookings) {
@@ -154,8 +174,9 @@ export async function getCalendar(
   return dates.map((date): CalendarDay => {
     const day = new Date(`${date}T00:00:00Z`);
     const weekend = isWeekend(date);
+    const dayOff = !weekend && closedDates.has(date);
     const taken = bookedByDate.get(date) ?? new Set<string>();
-    const availableSlots = weekend
+    const availableSlots = weekend || dayOff
       ? 0
       : TIME_SLOTS.filter(
           (slot) => !taken.has(slot.id) && !isSlotPast(date, slot, now),
@@ -173,8 +194,9 @@ export async function getCalendar(
         month: "short",
       }),
       isWeekend: weekend,
+      isDayOff: dayOff,
       isToday: date === today,
-      selectable: !weekend && availableSlots > 0,
+      selectable: !weekend && !dayOff && availableSlots > 0,
       availableSlots,
       totalSlots: TIME_SLOTS.length,
     };
@@ -192,6 +214,7 @@ export async function createBooking(
 ): Promise<Booking> {
   const payload = parseCreateBookingInput(input);
   assertBookableDate(payload.date, now);
+  await assertDayOpen(payload.date);
 
   await expireFinishedBookings(now);
 
@@ -458,6 +481,7 @@ export async function rescheduleBooking(
   }
 
   assertBookableDate(target.date, now);
+  await assertDayOpen(target.date);
 
   const slot = TIME_SLOTS.find(
     (candidate) => candidate.id === target.timeSlot,
@@ -532,6 +556,56 @@ export async function listBookings(
 ): Promise<Booking[]> {
   await expireFinishedBookings(now);
   return findBookings(filters);
+}
+
+/** Closed days from today onwards, for the admin dashboard. */
+export async function listClosedDays(now: Date = new Date()): Promise<ClosedDate[]> {
+  return findClosedDates(todayInZone(now));
+}
+
+/**
+ * Closes a weekday for everyone. Weekends are always closed and past days
+ * cannot change. Refused while any student holds a slot on that day, even
+ * one still waiting for payment or confirmation.
+ */
+export async function closeDay(input: unknown, now: Date = new Date()): Promise<ClosedDate[]> {
+  const parsed = closeDaySchema.safeParse(input);
+  if (!parsed.success) {
+    throw new BookingError(
+      "VALIDATION_FAILED",
+      "Please correct the highlighted fields.",
+      toFieldErrors(parsed.error),
+    );
+  }
+  const { date, reason } = parsed.data;
+  if (isWeekend(date)) {
+    throw new BookingError("WEEKEND", "Weekends are already closed.", {
+      date: "Weekends are already closed.",
+    });
+  }
+  if (date < todayInZone(now)) {
+    throw new BookingError("PAST_DATE", "That date has already passed.", {
+      date: "That date has already passed.",
+    });
+  }
+
+  // Unpaid holds that ran out must not block the admin.
+  await expireFinishedBookings(now);
+  await closeDate(date, reason ?? null);
+  return listClosedDays(now);
+}
+
+/** Opens a closed day again so students can book it. */
+export async function reopenDay(date: string, now: Date = new Date()): Promise<ClosedDate[]> {
+  if (!isValidIsoDate(date)) {
+    throw new BookingError("VALIDATION_FAILED", "Choose a valid date.", {
+      date: "Choose a valid date.",
+    });
+  }
+  if (!(await reopenDate(date))) {
+    throw new BookingError("NOT_FOUND", "That day is not closed.");
+  }
+  return listClosedDays(now);
 }
 
 export { findBookingById } from "./repository";

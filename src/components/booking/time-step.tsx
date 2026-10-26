@@ -70,7 +70,7 @@ export function TimeStep({
           role="status"
           className="mt-4 rounded-lg border border-border bg-muted/40 p-4 text-sm text-muted-foreground"
         >
-          {getClosedReason(dict, locale, date)}
+          {getClosedReason(dict, locale, date, availability.dayOff)}
         </p>
       )}
 

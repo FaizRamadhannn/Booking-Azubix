@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthorized } from "@/lib/auth/admin";
 import { BookingError } from "@/lib/booking/errors";
 import { createBooking, listBookings } from "@/lib/booking/service";
+import { withinRateLimit, rateLimitedResponse } from "@/lib/security/rate-limit";
 import { bookingFiltersSchema, toFieldErrors } from "@/lib/booking/validation";
 
 export const dynamic = "force-dynamic";
@@ -24,6 +25,8 @@ function errorResponse(error: unknown) {
 
 /** Public booking endpoint. Every field is re-validated here; the client is never trusted. */
 export async function POST(request: Request) {
+  if (!(await withinRateLimit(request, "createBooking"))) return rateLimitedResponse();
+
   let payload: unknown;
   try {
     payload = await request.json();

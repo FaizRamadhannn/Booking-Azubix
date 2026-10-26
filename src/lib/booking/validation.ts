@@ -148,6 +148,20 @@ export const bookingActionSchema = z.discriminatedUnion("action", [
     .extend(rescheduleBookingSchema.shape),
 ]);
 
+/** What the admin sends to close a weekday. */
+export const closeDaySchema = z.object({
+  date: z
+    .string({ error: "Choose a date." })
+    .refine(isValidIsoDate, "Choose a valid date."),
+  reason: z
+    .string()
+    .trim()
+    .max(120, "Keep the reason under 120 characters.")
+    .optional()
+    .transform((value) => value || undefined)
+    .refine((value) => !value || value.length >= 2, "Write at least 2 characters."),
+});
+
 export const bookingFiltersSchema = z.object({
   date: z.string().refine(isValidIsoDate, "Invalid date filter.").optional(),
   level: z.enum(CLASS_LEVELS).optional(),
