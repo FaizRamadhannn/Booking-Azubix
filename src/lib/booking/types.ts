@@ -128,8 +128,10 @@ export interface SlotAvailability {
 export interface DayAvailability {
   date: IsoDate;
   isOpen: boolean;
-  /** Why the whole day is closed (weekend / past / outside booking window). */
+  /** Why the whole day is closed (weekend / past / outside window / day off). */
   closedReason: string | null;
+  /** True when the admin closed this weekday. */
+  dayOff: boolean;
   slots: SlotAvailability[];
 }
 
@@ -140,6 +142,8 @@ export interface CalendarDay {
   dayOfMonth: string;
   monthShort: string;
   isWeekend: boolean;
+  /** A weekday the admin closed: no classes at all. */
+  isDayOff: boolean;
   isToday: boolean;
   selectable: boolean;
   availableSlots: number;
@@ -150,4 +154,11 @@ export interface BookingFilters {
   date?: IsoDate;
   level?: ClassLevel;
   status?: BookingRecordStatus;
+}
+
+/** A weekday the admin closed, e.g. for a holiday. */
+export interface ClosedDate {
+  date: IsoDate;
+  reason: string | null;
+  createdAt: string;
 }

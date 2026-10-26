@@ -9,6 +9,7 @@ import {
 import { BookingError } from "./errors";
 import {
   assertBookableDate,
+  closeDaySchema,
   parseBookingAction,
   parseCreateBookingInput,
 } from "./validation";
@@ -199,5 +200,31 @@ describe("record statuses", () => {
 
   test("only cancellation releases a slot", () => {
     assert.deepEqual([...SLOT_RELEASING_STATUSES], ["CANCELLED"]);
+  });
+});
+
+describe("closeDaySchema", () => {
+  test("accepts a date with or without a reason", () => {
+    const plain = closeDaySchema.parse({ date: "2026-11-02" });
+    assert.equal(plain.date, "2026-11-02");
+    assert.equal(plain.reason, undefined);
+    assert.equal(
+      closeDaySchema.parse({ date: "2026-11-02", reason: "  Libur nasional " }).reason,
+      "Libur nasional",
+    );
+  });
+
+  test("treats a blank reason as no reason", () => {
+    assert.equal(closeDaySchema.parse({ date: "2026-11-02", reason: "   " }).reason, undefined);
+  });
+
+  test("rejects invalid dates and bad reasons", () => {
+    assert.equal(closeDaySchema.safeParse({ date: "2026-02-30" }).success, false);
+    assert.equal(closeDaySchema.safeParse({ date: "02-11-2026" }).success, false);
+    assert.equal(closeDaySchema.safeParse({ date: "2026-11-02", reason: "x" }).success, false);
+    assert.equal(
+      closeDaySchema.safeParse({ date: "2026-11-02", reason: "x".repeat(121) }).success,
+      false,
+    );
   });
 });

@@ -47,7 +47,9 @@ export function DateStep({
             const longDate = formatLongDate(day.date, tag);
             const label = day.isWeekend
               ? format(t.ariaWeekend, { date: longDate })
-              : day.selectable
+              : day.isDayOff
+                ? format(t.ariaDayOff, { date: longDate })
+                : day.selectable
                 ? format(t.ariaOpen, { date: longDate, available: day.availableSlots, total: day.totalSlots })
                 : format(t.ariaUnavailable, { date: longDate });
 
@@ -90,7 +92,9 @@ export function DateStep({
                 >
                   {day.isWeekend
                     ? t.closed
-                    : day.availableSlots > 0
+                    : day.isDayOff
+                      ? t.dayOff
+                      : day.availableSlots > 0
                       ? format(t.freeCount, { count: day.availableSlots })
                       : t.full}
                 </span>

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { BookingError } from "@/lib/booking/errors";
 import { lookupPackage } from "@/lib/booking/service";
+import { rateLimitedResponse, withinRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
  * with; returns only what the booking form needs.
  */
 export async function POST(request: Request) {
+  if (!(await withinRateLimit(request, "packageLookup"))) return rateLimitedResponse();
+
   let body: unknown;
   try {
     body = await request.json();

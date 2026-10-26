@@ -331,6 +331,17 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
         setStep("level");
         return;
       }
+      if (error.code === "RATE_LIMITED") {
+        setFormError(dict.errors.RATE_LIMITED);
+        return;
+      }
+      if (error.code === "DATE_CLOSED") {
+        setFormError(dict.errors.DATE_CLOSED);
+        setTimeSlot(null);
+        setStep("date");
+        void refreshCalendar();
+        return;
+      }
       setFieldErrors(localizeFieldErrors(dict, Object.keys(error.fieldErrors ?? {})));
       setFormError(
         error.code === "SLOT_TAKEN" || error.code === "SLOT_EXPIRED"
@@ -406,6 +417,8 @@ function BookingFlowInner({ initialCalendar }: { initialCalendar: CalendarDay[] 
       const error = (await response.json()) as BookingErrorBody;
       if (error.code === "PAYMENT_EXPIRED" || error.code === "NOT_FOUND") {
         paymentExpired();
+      } else if (error.code === "RATE_LIMITED") {
+        setFormError(dict.errors.RATE_LIMITED);
       } else if (error.code === "VALIDATION_FAILED") {
         setFormError(dict.booking.payment.payerNameError);
       } else {

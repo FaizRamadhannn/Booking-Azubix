@@ -4,9 +4,11 @@ import { supabaseService } from "@/lib/supabase/service";
 
 import { pricePerSession, TIME_SLOTS } from "./constants";
 import { minutesOfDayInZone, todayInZone } from "./datetime";
+import { BookingError } from "./errors";
 import type {
   Booking,
   BookingFilters,
+  ClosedDate,
   CreateBookingInput,
   IsoDate,
   PrivatePackage,
@@ -17,6 +19,7 @@ const UNIQUE_VIOLATION = "23505";
 
 const TABLE = "bookings";
 const PACKAGES = "private_packages";
+const CLOSED_DATES = "closed_dates";
 
 /** Columns selected everywhere, so every read produces a complete Booking. */
 const COLUMNS =
@@ -125,6 +128,18 @@ function isUniqueViolation(error: { code?: string } | null): boolean {
 /** True when the unique violation came from the one-booking-per-slot index. */
 function isSlotViolation(error: { message?: string; details?: string } | null): boolean {
   return `${error?.message ?? ""} ${error?.details ?? ""}`.includes("bookings_slot_unique");
+}
+
+/**
+ * The database trigger rejects any booking that lands on a closed day, even
+ * one that slipped past the application's own check in a race.
+ */
+function throwIfDateClosed(error: { message?: string } | null): void {
+  if (error?.message?.includes("DATE_CLOSED")) {
+    throw new BookingError("DATE_CLOSED", "There is no class on this day.", {
+      date: "There is no class on this day.",
+    });
+  }
 }
 
 /** Turns an unexpected PostgREST error into a thrown exception. */
@@ -247,6 +262,7 @@ export async function insertBooking(
     .select(COLUMNS)
     .single();
 
+  throwIfDateClosed(error);
   if (isUniqueViolation(error)) {
     return { ok: false, conflict: isSlotViolation(error) ? "slot" : "payment" };
   }
@@ -389,6 +405,7 @@ export async function rescheduleBookingById(
     .select(COLUMNS)
     .maybeSingle();
 
+  throwIfDateClosed(error);
   if (isUniqueViolation(error)) return null;
   assertNoError(error, "rescheduling a booking");
 
@@ -512,6 +529,7 @@ export async function bookWithPackage(
     p_price: pricePerSession("PRIVATE", input.level),
   });
 
+  throwIfDateClosed(error);
   if (isUniqueViolation(error)) return { ok: false, reason: "slot" };
   const known = PACKAGE_ERRORS.find((code) => error?.message?.includes(code));
   if (known) return { ok: false, reason: known };
@@ -541,4 +559,56 @@ export async function findPackages(): Promise<PrivatePackage[]> {
     .order("created_at", { ascending: false });
   assertNoError(error, "listing private packages");
   return (data as unknown as PackageRow[]).map(toPackage);
+}
+
+type ClosedDateRow = { date: string; reason: string | null; created_at: string };
+
+function toClosedDate(row: ClosedDateRow): ClosedDate {
+  return { date: row.date, reason: row.reason, createdAt: row.created_at };
+}
+
+/** Closed days from `from` onwards (inclusive), earliest first. */
+export async function findClosedDates(from: IsoDate, to?: IsoDate): Promise<ClosedDate[]> {
+  let query = supabaseService()
+    .from(CLOSED_DATES)
+    .select("date, reason, created_at")
+    .gte("date", from);
+  if (to) query = query.lte("date", to);
+  const { data, error } = await query.order("date", { ascending: true });
+  assertNoError(error, "loading closed days");
+  return (data as ClosedDateRow[]).map(toClosedDate);
+}
+
+export async function isDateClosed(date: IsoDate): Promise<boolean> {
+  return (await findClosedDates(date, date)).length > 0;
+}
+
+/**
+ * Closes a day atomically: the database function refuses while any booking
+ * (paid or not) still holds a slot on it. Closing twice is harmless.
+ */
+export async function closeDate(date: IsoDate, reason: string | null): Promise<void> {
+  const { error } = await supabaseService().rpc("close_class_date", {
+    p_date: date,
+    p_reason: reason ?? "",
+  });
+  if (error?.message?.includes("DATE_HAS_BOOKINGS")) {
+    throw new BookingError(
+      "DATE_HAS_BOOKINGS",
+      "Students have already booked this day, so it cannot be closed.",
+      { date: "Students have already booked this day." },
+    );
+  }
+  assertNoError(error, "closing a day");
+}
+
+/** Opens a closed day again. Returns false when it was not closed. */
+export async function reopenDate(date: IsoDate): Promise<boolean> {
+  const { data, error } = await supabaseService()
+    .from(CLOSED_DATES)
+    .delete()
+    .eq("date", date)
+    .select("date");
+  assertNoError(error, "reopening a day");
+  return (data ?? []).length > 0;
 }

@@ -35,6 +35,7 @@ export function getClosedReason(
   dict: Dictionary,
   locale: Locale,
   date: IsoDate,
+  dayOff = false,
   now: Date = new Date(),
 ): string | null {
   if (isWeekend(date)) return dict.booking.date.closedWeekend;
@@ -46,5 +47,6 @@ export function getClosedReason(
       date: formatShortDate(latest, intlTag(locale)),
     });
   }
+  if (dayOff) return dict.booking.date.closedDayOff;
   return null;
 }

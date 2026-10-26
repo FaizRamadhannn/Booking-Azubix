@@ -219,6 +219,9 @@ export const de = {
       closedWeekend: "Der Unterricht findet nur von Montag bis Freitag statt.",
       closedPast: "Dieses Datum liegt bereits in der Vergangenheit.",
       closedOutsideWindow: "Buchungen sind {days} Tage im Voraus möglich, bis zum {date}.",
+      dayOff: "Kein Kurs",
+      ariaDayOff: "{date} — an diesem Tag kein Unterricht",
+      closedDayOff: "An diesem Tag findet kein Unterricht statt.",
     },
 
     time: {
@@ -369,6 +372,9 @@ export const de = {
     PACKAGE_NOT_FOUND: "Kode paket dan nomor WhatsApp tidak cocok. Periksa kembali keduanya.",
     PACKAGE_NOT_CONFIRMED: "Pembayaran paket ini belum dikonfirmasi admin. Coba lagi setelah dikonfirmasi.",
     PACKAGE_USED_UP: "Semua sesi di paket ini sudah terpakai.",
+    DATE_CLOSED: "An diesem Tag findet kein Unterricht statt. Bitte wähle ein anderes Datum.",
+    DATE_HAS_BOOKINGS: "Für diesen Tag gibt es bereits Buchungen.",
+    RATE_LIMITED: "Zu viele Versuche. Bitte warte ein paar Minuten und versuche es erneut.",
     UNAUTHORIZED: "Ihre Admin-Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.",
     INTERNAL: "Etwas ist schiefgelaufen. Bitte versuchen Sie es erneut.",
     genericRetry: "Das hat nicht funktioniert. Bitte versuchen Sie es erneut.",
@@ -461,6 +467,33 @@ export const de = {
       confirmPayment: "Konfirmasi pembayaran",
       confirmingPayment: "Mengonfirmasi...",
       chatWhatsapp: "Chat WhatsApp",
+    },
+
+    closedDays: {
+      heading: "Hari libur kelas",
+      subtext:
+        "Nonaktifkan satu hari penuh (Senin–Jumat). Hanya bisa jika belum ada murid yang booking di hari itu, termasuk yang masih menunggu pembayaran atau konfirmasi.",
+      dateLabel: "Tanggal",
+      reasonLabel: "Alasan (opsional)",
+      reasonPlaceholder: "Contoh: Libur nasional",
+      submit: "Nonaktifkan hari ini",
+      submitting: "Menonaktifkan…",
+      empty: "Tidak ada hari yang dinonaktifkan.",
+      listHeading: "Hari yang dinonaktifkan",
+      reopen: "Aktifkan lagi",
+      reopening: "Mengaktifkan…",
+      noReason: "Tanpa alasan",
+      closedNotice: "{date} dinonaktifkan.",
+      reopenedNotice: "{date} aktif lagi.",
+      chooseDate: "Pilih tanggal dulu.",
+      errors: {
+        DATE_HAS_BOOKINGS:
+          "Tidak bisa dinonaktifkan: sudah ada murid yang booking di hari ini (termasuk yang menunggu pembayaran/konfirmasi). Batalkan atau pindahkan booking-nya dulu.",
+        WEEKEND: "Sabtu dan Minggu sudah otomatis libur.",
+        PAST_DATE: "Tanggal ini sudah lewat.",
+        VALIDATION_FAILED: "Periksa tanggal dan alasannya (alasan minimal 2 huruf).",
+        NOT_FOUND: "Hari ini sudah aktif.",
+      },
     },
 
     packages: {
