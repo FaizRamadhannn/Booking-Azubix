@@ -43,9 +43,12 @@ export function TypeStep({
               )}
             >
               <span className="flex items-center justify-between">
-                <span className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+                <span className="flex flex-wrap items-center gap-2 text-lg font-semibold tracking-tight">
                   <Icon aria-hidden="true" className="size-5 text-primary" />
                   {t.options[type].title}
+                  <span className="rounded-full border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                    {t.oneOnOne}
+                  </span>
                 </span>
                 <ChevronRight
                   aria-hidden="true"
