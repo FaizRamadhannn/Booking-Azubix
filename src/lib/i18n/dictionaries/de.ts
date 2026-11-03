@@ -27,8 +27,8 @@ export const de = {
       CONFIRMED: "Dikonfirmasi admin",
     },
     bookingType: {
-      REGULAR: "Regular",
-      PRIVATE: "Private",
+      REGULAR: "Private Flex",
+      PRIVATE: "Private Package",
     },
     level: "Niveau",
     back: "Zurück",
@@ -47,7 +47,7 @@ export const de = {
     footerTimezoneNote: "Alle Kurszeiten werden in {timezone} angezeigt.",
     navFeatures: "Vorteile",
     navProcess: "So funktioniert's",
-    navPrivate: "Privat",
+    navPrivate: "Pakete",
     navFaq: "FAQ",
   },
 
@@ -58,7 +58,7 @@ export const de = {
     subcopy:
       "Wählen Sie Ihr Niveau, einen freien Termin an einem Wochentag und teilen Sie Ihrem Lehrer mit, was Sie zuletzt behandelt haben. Sie sehen sofort, welche Zeiten noch frei sind.",
     cta: "Kurs buchen",
-    ctaPrivate: "Privatpakete ansehen",
+    ctaPrivate: "Private Packages ansehen",
     facts: {
       weekdays: {
         title: "Montag bis Freitag",
@@ -86,7 +86,7 @@ export const de = {
       steps: [
         {
           title: "Kurs wählen",
-          detail: "Regulär pro Termin oder ein Privatpaket mit günstigerem Preis pro Termin.",
+          detail: "Jeder Kurs ist Einzelunterricht. Zahle pro Termin mit Private Flex oder spare mit einem Private Package.",
         },
         {
           title: "Freien Termin wählen",
@@ -99,16 +99,16 @@ export const de = {
       ],
     },
     private: {
-      eyebrow: "Privatunterricht",
-      heading: "Wählen Sie Ihr Privatpaket",
-      subtext: "Günstiger pro Termin, eins zu eins mit Ihrer Lehrkraft. Das ganze Paket wird vorab per QRIS bezahlt.",
+      eyebrow: "Private Package",
+      heading: "Wählen Sie Ihr Private Package",
+      subtext: "Derselbe Einzelunterricht wie bei Private Flex, aber günstiger pro Termin. Das ganze Paket wird vorab per QRIS bezahlt.",
     },
     faq: {
       heading: "Häufige Fragen",
       items: [
         {
-          question: "Was ist der Unterschied zwischen regulär und privat?",
-          answer: "Reguläre Kurse werden pro Termin bezahlt. Privatpakete sind pro Termin günstiger und enthalten E-Book, Übungen und Kursaufzeichnungen, werden aber vollständig im Voraus bezahlt.",
+          question: "Ist Private Flex ein Gruppenkurs?",
+          answer: "Nein. Jeder Kurs bei Azubix ist Einzelunterricht mit Ihrer Lehrkraft. Der einzige Unterschied ist die Bezahlung: Private Flex wird pro Termin bezahlt, ein Private Package ist pro Termin günstiger und enthält E-Book, Übungen und Kursaufzeichnungen, wird aber vollständig im Voraus bezahlt.",
         },
         {
           question: "Wie früh muss ich buchen?",
@@ -166,22 +166,23 @@ export const de = {
 
     bookingType: {
       legend: "Pilih tipe kelas",
-      description: "Keduanya dibayar lewat QRIS. Regular dibayar per sesi; private lebih murah per sesi, tetapi paketnya dibayar penuh di awal.",
+      description: "Semua kelas private 1-on-1 dengan tutor. Bedanya hanya cara bayar: Private Flex dibayar per sesi, Private Package lebih hemat per sesi tetapi dibayar penuh di awal. Keduanya lewat QRIS.",
+      oneOnOne: "1-on-1",
       options: {
         REGULAR: {
-          title: "Regular",
-          description: "Rp 50.000 – 80.000 per sesi sesuai level, bayar tiap sesi dengan scan QRIS.",
+          title: "Private Flex",
+          description: "Bayar per sesi, tanpa komitmen. Rp 50.000 – 80.000 per sesi sesuai level.",
         },
         PRIVATE: {
-          title: "Private",
-          description: "Mulai Rp 30.000 per sesi. Paket dibayar penuh di awal lewat QRIS.",
+          title: "Private Package",
+          description: "Hemat 40%+ per sesi, mulai Rp 30.000. Paket dibayar penuh di awal.",
         },
       },
       srSelected: "Dipilih",
     },
 
     privatePlans: {
-      heading: "Pilih Paket Private",
+      heading: "Pilih Private Package",
       subtext: "Lebih hemat per sesi. Paket dibayar penuh di awal lewat QRIS.",
       featured: "Paling populer",
       perSession: "/sesi",
@@ -305,7 +306,7 @@ export const de = {
       payButton: "Saya Sudah Bayar",
       privateAmountLabel: "Total paket — dibayar penuh di awal",
       privatePerSession: "{price}/sesi × {sessions} sesi",
-      privatePackageHeading: "Paket Private",
+      privatePackageHeading: "Private Package",
       privateIncludesHeading: "Termasuk",
       privateExtrasHeading: "Bonus",
       processing: "Memproses...",
