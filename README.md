@@ -198,9 +198,6 @@ Checked against a production build (`next start`) with a real database:
 - `npm test` (31 tests), `npm run typecheck`, `npm run lint` and
   `npm run build` all pass clean
 
-See [`project_context.md`](./project_context.md) for architecture and decisions.
-# booking-class-azubix
-
 > **Why there is no public demo**
 >
 > This application is currently used in a real-world setting by me and my students to manage class bookings. For security and privacy reasons, I have decided not to provide a publicly accessible demo at this time.
